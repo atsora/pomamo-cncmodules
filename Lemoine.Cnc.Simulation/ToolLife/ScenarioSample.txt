@@ -1,0 +1,53 @@
+﻿# This file contains the description of toolpots
+#
+# A toolpot comprising a tool is represented by TX[Ys]
+# - X being the tool number
+# - Y being the remaining life in seconds
+# An empty toolpot is represented by a '-'
+# Each toolpot is separated by a space
+# The same number of toolpots must be kept from the beginning to the end
+# Each command specifying a tool must be prefixed by "T>"
+# 
+# For example:
+# T> - - -                         => Three empty toolpots
+# T> T1[20.5s] T2[15.2s] T3[0.0s]  => Three tools, the last one being expired
+#
+# Pauses can be added with h:mm:ss
+# Comments begin by "#"
+# Empty lines are ignored
+#
+# Complex form, including the direction of tool life, warnings and limits:
+# (in the form [direction;current value;warning;limit]
+# T> T1[up;2.0s;10.0s;15.0s] T2[down;20.0s;5.0s;0.0s]
+
+# Initial state, T1 appeared (new tool registered)
+T> T1[50.0s] - -
+0:00:03
+
+# life of T1 decreased, T2 appeared (new tool registered)
+T> T1[47.0s] T2[50.0s] -
+0:00:03
+
+# life of T1 and T2 decreased
+T> T1[44.0s] T2[47.0s] -
+0:00:03
+
+# life of T1 decreased, life of T2 increased (rest life increased)
+T> T1[41.0s] T2[70.0s] -
+0:00:03
+
+# life of T1 decreased, tool changed at the position 2 (tool number changed)
+T> T1[38.0s] T3[6.0s] -
+0:00:03
+
+# T1 disappeared, life of T3 decreased (tool removed)
+T> - T3[3.0s] -
+0:00:03
+
+# life of T3 felt to 0 (tool expired)
+T> - T3[0.0s] -
+0:00:03
+
+# T3 disappeared (tool removed)
+T> - - -
+0:00:03

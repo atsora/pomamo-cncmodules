@@ -1,0 +1,25 @@
+﻿# This file contain the description of cnc values that will be set
+#
+# Simple syntax:
+# CncValueName=Value
+#
+# For example:
+# Running=True   => the cnc value "Running" is now set to "True"
+#
+# Pauses can be added with h:mm:ss
+# Comments begin by "#"
+# Empty lines are ignored
+
+# Initialize cnc values
+V> Running=True
+V> Feedrate=2500
+0:00:05
+
+# Change the feedrate
+V> Feedrate=1000
+0:00:05
+
+# Update both cnc values
+V> Running=False
+V> Feedrate=0
+0:00:10

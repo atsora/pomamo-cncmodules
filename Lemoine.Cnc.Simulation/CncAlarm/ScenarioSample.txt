@@ -1,0 +1,40 @@
+﻿# This file contains the description of alarms
+#
+# All alarms created and deleted by the simulator have an index. For example, we create
+# a first alarm whose index is 1, then another alarm with the index 450 and then we delete
+# the first alarm with the index 1.
+#
+# Each alarm have
+# - a CncInfo
+# - a CncSubInfo (can be empty)
+# - a Type
+# - a Number (can contain letters)
+# - a Message (can be empty, '{' and '}' are forbidden)
+#
+# An alarm can also contain a series of properties that can be updated.
+#
+# Each command specifying a tool must be prefixed by "A>", followed by "Create", "Update" or "Delete"
+#
+# For example:
+# A> Create 1 {CncInfo; CncSubInfo; Type; Number; Message} property1=value1  => Create a first alarm with the index 1
+# A> Update 1 property1=value2 => property 1 of alarm 1 is updated
+# A> Delete 1 => alarm 1 is deleted
+# Pauses can be added with h:mm:ss
+# Comments begin by "#"
+# Empty lines are ignored
+
+# Create a new alarm with the index 1
+A> Create 1 {CncInfo; CncSubInfo; Type; Number; Message} property1=value1
+0:00:10
+
+# Create a second alarm with no CncSubInfo, no Message, no properties, index 450
+A> Create 450 {CncInfo; ; Type; Number2; }
+0:00:10
+
+# Update the property of the alarm 1
+A> Update 1 property1=value2
+0:00:10
+
+# Remove the alarm 1
+A> Delete 1
+0:00:10

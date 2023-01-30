@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <Sdk Name="Microsoft.Build.CentralPackageVersions" Version="2.0.1" />
+
+  <PropertyGroup>
+    <TargetFrameworks>net48;net6.0</TargetFrameworks>
+    <AssemblyOriginatorKeyFile>..\..\..\PulseKeyFile.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="NHibernate">
+      <HintPath>..\..\..\3rdParty\NHibernateAndCo\NHibernate\Required_Bins\NHibernate.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Libraries\Lemoine.Core\Lemoine.Core.csproj" AdditionalProperties="TargetFramework=netstandard2.0" />
+    <ProjectReference Include="..\..\..\Libraries\Lemoine.Database\Lemoine.Database.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\Lemoine.ModelDAO\Lemoine.ModelDAO.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\Pulse.Database\Pulse.Database.csproj" />
+    <ProjectReference Include="..\..\Lemoine.Cnc.ICncModule\Lemoine.Cnc.ICncModule.csproj" AdditionalProperties="TargetFramework=netstandard2.0" />
+    <ProjectReference Include="..\..\Libraries\Lemoine.Cnc.CncAlarm\Lemoine.Cnc.CncAlarm.csproj" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <None Include="CncAlarm\ScenarioSample.txt" CopyToOutputDirectory="Never" />
+    <None Include="CncValue\ScenarioSample.txt" CopyToOutputDirectory="Never" />
+    <None Include="ToolLife\ScenarioSample.txt" CopyToOutputDirectory="Never" />
+    <None Include="ConfigurationSample.xml" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+  
+</Project>

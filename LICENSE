@@ -1,0 +1,27 @@
+The default software license for the Cnc Modules is the GPL-2.0-or-later license
+unless the folder contains a specific LICENSE file
+or if anything else is explicitely written in the file.
+
+The full texts of the licenses are in the LICENSES folder.
+
+
+Here are the licenses of some used external libraries:
+- log4net: Apache License, Version 2.0
+  (http://www.apache.org/licenses/LICENSE-2.0.html)
+  The source code is available here:
+  http://logging.apache.org/log4net/
+
+- SharedMemory:
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  (https://github.com/spazzarama/SharedMemory/blob/master/LICENSE.md)
+  The source code is available here:
+  https://github.com/spazzarama/SharedMemory
+
+- Newtonsoft.Json / Json.NET: MIT (https://licenses.nuget.org/MIT)
+  (https://www.nuget.org/packages/Newtonsoft.Json/12.0.2/license)
+
+- Most Microsoft.* assemblies: Apache-2.0
+  (https://licenses.nuget.org/Apache-2.0)
+
+- Pomamo libraries: Apache License, Version 2.0
+  (http://www.apache.org/licenses/LICENSE-2.0.html)

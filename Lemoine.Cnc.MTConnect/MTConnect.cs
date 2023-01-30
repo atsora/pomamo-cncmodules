@@ -1,0 +1,514 @@
+// Copyright (C) 2009-2023 Lemoine Automation Technologies
+//
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+using System;
+using System.Collections;
+using System.Globalization;
+using System.Xml;
+using System.Xml.XPath;
+using System.IO;
+
+namespace Lemoine.Cnc
+{
+  /// <summary>
+  /// MTConnect input module
+  /// </summary>
+  public partial class MTConnect: BaseCncModule, ICncModule, IDisposable
+  {
+    static readonly string RANDOM = "RANDOM";
+    static readonly string UNAVAILABLE = "UNAVAILABLE";
+    static readonly string DEFAULT_MTCONNECTSTREAMS_NAMESPACE_PREFIX = "m";
+    static readonly string DEFAULT_MTCONNECTSTREAMS_NAMESPACE = "urn:mtconnect.org:MTConnectStreams:1.1";
+    static readonly string DEFAULT_BLOCK_PATH = "//Controller//DataItems/DataItem[@type='BLOCK']"; // Full XPath is //Controller/Components/Path/DataItems
+    static readonly string DEFAULT_BLOCK_XPATH = "//m:Block";
+    static readonly string SHARED_PATH_SEPARATOR = "\\";
+    static readonly string DEFAULT_PROGRAMFILE_EXTENSION = ".EIA";
+    static readonly string DEFAULT_COMMENT_SEARCH_STRING = "(POMAMO PART=";
+
+    #region Members
+    Random m_random = new Random ();
+    Hashtable m_xmlns = new Hashtable ();
+    string m_mtconnectStreamsPrefix = DEFAULT_MTCONNECTSTREAMS_NAMESPACE_PREFIX;
+    string m_blockPath = DEFAULT_BLOCK_PATH;
+    string m_blockXPath = DEFAULT_BLOCK_XPATH;
+    
+    bool m_error = true;
+    XmlNamespaceManager m_streamsNs = null;
+    XPathNavigator m_streamsNavigator;
+    #endregion // Members
+    
+    #region Getters / Setters
+    /// <summary>
+    /// MTConnect URL of the machine
+    /// 
+    /// For example:
+    /// <item>http://mtconnectagentaddress:port/mymachine/current</item>
+    /// <item>http://mtconnectagentaddress:port/mymachine/current?//Controller[@id="controllerId"]|//Axes[@id="AxesId"]</item>
+    /// </summary>
+    public string Url { get; set; }
+
+    /// <summary>
+    /// Path to shared programs folder
+    /// 
+    /// For example:
+    /// \\192.168.1.11\MC_Direct Mode Programs
+    /// </summary>
+    public string SharedProgramFolder { get; set; }
+
+    /// <summary>
+    /// string to identify the program file extension
+    /// 
+    /// </summary>
+    public string ProgramFileExtension { get; set; }
+
+    /// <summary>
+    /// string to identify part comment in program content
+    /// 
+    /// </summary>
+    public string CommentSearchString { get; set; }
+
+    /// <summary>
+    /// XML namespace
+    /// in the form prefix1=uri1;prefix2=uri2;
+    /// 
+    /// For example:
+    /// <item>m=urn:mtconnect.org:MTConnectStreams:1.1</item>
+    /// 
+    /// If no namespace is associated to MTConnectStreamsPrefix,
+    /// a default namespace is used.
+    /// <see cref="MTConnectStreamsPrefix" />
+    /// </summary>
+    public string Xmlns {
+      get {
+        string result = "";
+        foreach (DictionaryEntry i in m_xmlns) {
+          result += String.Format ("{0}:{1};", i.Key, i.Value);
+        }
+        return result;
+      }
+      set {
+        m_xmlns.Clear ();
+        string[] xmlNamespaces = value.Split (new [] {';'}, StringSplitOptions.RemoveEmptyEntries);
+        foreach (string xmlNamespace in xmlNamespaces) {
+          string[] xmlNamespaceKeyValue = xmlNamespace.Split ('=');
+          if (xmlNamespaceKeyValue.Length != 2) {
+            log.ErrorFormat ("Xmlns.set: " +
+                             "invalid value {0}",
+                             xmlNamespace);
+            throw new ArgumentException ("Bad XML namespace");
+          }
+          log.DebugFormat ("Xmlns.set: " +
+                           "add prefix={0} uri={1}",
+                           xmlNamespaceKeyValue [0], xmlNamespaceKeyValue [1]);
+          m_xmlns [xmlNamespaceKeyValue [0]] = xmlNamespaceKeyValue [1];
+        }
+      }
+    }
+    
+    /// <summary>
+    /// MTConnectStreams namespace prefix that must be used in the XPath expressions.
+    /// It is used to get the Header data (instance and nextSequence values).
+    /// If the XML file does not use any namespace, then use an empty string.
+    /// 
+    /// Default is "m".
+    /// </summary>
+    public string MTConnectStreamsPrefix {
+      get { return m_mtconnectStreamsPrefix; }
+      set { m_mtconnectStreamsPrefix = value; }
+    }
+    
+    /// <summary>
+    /// XPath used in the URL to get the BLOCK.
+    /// This is XPath related to the probe page (not the current or sample pages)
+    /// 
+    /// Default is "//Controller//DataItems/DataItem[@type='BLOCK']".
+    /// </summary>
+    public string BlockPath {
+      get { return m_blockPath; }
+      set { m_blockPath = value; }
+    }
+    
+    /// <summary>
+    /// XPath used to get a Block note in the sample request.
+    /// 
+    /// Default is "//m:Block"
+    /// </summary>
+    public string BlockXPath {
+      get { return m_blockXPath; }
+      set { m_blockXPath = value; }
+    }
+    
+    /// <summary>
+    /// Error while getting the XML ?
+    /// </summary>
+    public bool Error {
+      get { return m_error; }
+    }
+    #endregion // Getters / Setters
+
+    #region Constructors / Destructor
+    /// <summary>
+    /// Description of the constructor
+    /// </summary>
+    public MTConnect () : base("Lemoine.Cnc.In.MTConnect")
+    {
+    }
+    
+    /// <summary>
+    /// <see cref="IDisposable.Dispose" />
+    /// </summary>
+    public void Dispose ()
+    {
+      // Do nothing special here
+      GC.SuppressFinalize (this);
+    }
+    #endregion // Constructors / Destructor
+
+    #region Methods
+    /// <summary>
+    /// Start method
+    /// </summary>
+    public void Start ()
+    {
+      // 1. Prepare streams
+      m_error = true;
+      try {
+        string url = Url.Contains(RANDOM) ?
+          Url.Replace(RANDOM, m_random.Next().ToString()) :
+          Url;
+        
+        // Streams navigator
+        var document = new XPathDocument (url);
+        m_streamsNavigator = document.CreateNavigator();
+        
+        // Namespace
+        m_streamsNs = CreateNamespace(m_streamsNavigator, m_mtconnectStreamsPrefix, DEFAULT_MTCONNECTSTREAMS_NAMESPACE);
+      } catch (Exception ex) {
+        log.ErrorFormat ("Start: " +
+                         "{0} raised when trying to load URL={1}",
+                         ex, this.Url);
+        throw ex;
+      }
+      
+      // No error
+      m_error = false;
+      
+      // 2. Prepare assets (for tool life management)
+      try {
+        StartAssets();
+      } catch (Exception e) {
+        log.ErrorFormat("Start: failed starting assets: {0}", e);
+      }
+      
+      // 3. Reset blocks
+      m_hasBlocks = false;
+    }
+    
+    XmlNamespaceManager CreateNamespace(XPathNavigator navigator, string prefix, string defaultNs)
+    {
+      XmlNamespaceManager nsManager = null;
+      if (m_xmlns.Count == 0) {
+        if (0 == prefix.Length) {
+          // No namespace
+          nsManager = null;
+          log.InfoFormat("Start: no namespace for MTConnect");
+        } else {
+          // Default namespace
+          nsManager = new XmlNamespaceManager(navigator.NameTable);
+          nsManager.AddNamespace(prefix, defaultNs);
+          log.InfoFormat ("Start: use default namespace {0} for MTConnect prefix {1}",
+                          defaultNs, prefix);
+        }
+      } else {
+        // From the Xmlns variable
+        nsManager = new XmlNamespaceManager(navigator.NameTable);
+        foreach (DictionaryEntry i in m_xmlns) {
+          nsManager.AddNamespace(i.Key.ToString(), i.Value.ToString());
+        }
+      }
+      
+      return nsManager;
+    }
+    
+    /// <summary>
+    /// Get a valid value from a XPathNavigator, else raise an exception
+    /// </summary>
+    /// <param name="node"></param>
+    /// <param name="xpath"></param>
+    /// <param name="mayBeUnavailable"></param>
+    /// <returns></returns>
+    string GetValidValue (XPathNavigator node, string xpath = null, bool mayBeUnavailable = false)
+    {
+      if (null == node) {
+        log.Warn ("GetValidValue: " +
+                   "no node was found");
+        throw new Exception ("No node");
+      }
+      if (log.IsDebugEnabled) {
+        log.Debug ($"GetValidValue: got {node.Value} for {xpath ?? node.ToString ()}");
+      }
+      if (node.Value.Equals (UNAVAILABLE)) {
+        if (mayBeUnavailable) {
+          log.Warn ($"GetValidValue: UNAVAILABLE returned for {xpath ?? node.ToString ()}");
+        }
+        else {
+          log.Error ($"GetValidValue: UNAVAILABLE returned for {xpath ?? node.ToString ()}");
+        }
+        throw new Exception ("Unavailable");
+      }
+      
+      return node.Value;
+    }
+    
+    /// <summary>
+    /// Get a string value
+    /// </summary>
+    /// <param name="xpath">XPath</param>
+    /// <returns></returns>
+    public string GetString (string xpath)
+    {
+      if (m_error) {
+        log.Error ($"GetString: Error while loading the XML");
+        throw new Exception ("Error while loading XML");
+      }
+      
+      XPathNavigator node = (m_streamsNs == null) ?
+        m_streamsNavigator.SelectSingleNode(xpath) :
+        m_streamsNavigator.SelectSingleNode(xpath, m_streamsNs);
+      
+      return GetValidValue (node, xpath);
+    }
+
+    /// <summary>
+    /// Get a string value that may be unavailable
+    /// </summary>
+    /// <param name="xpath">XPath</param>
+    /// <returns></returns>
+    public string GetPossiblyUnavailableString (string xpath)
+    {
+      if (m_error) {
+        log.Error ($"GetPossiblyUnavailableString: Error while loading the XML");
+        throw new Exception ("Error while loading XML");
+      }
+
+      XPathNavigator node = (m_streamsNs == null) ?
+        m_streamsNavigator.SelectSingleNode (xpath) :
+        m_streamsNavigator.SelectSingleNode (xpath, m_streamsNs);
+
+      return GetValidValue (node, xpath, true);
+    }
+
+    /// <summary>
+    /// Get an int value
+    /// </summary>
+    /// <param name="param">XPath</param>
+    /// <returns></returns>
+    public int GetInt (string param)
+    {
+      return int.Parse (this.GetString (param));
+    }
+
+    /// <summary>
+    /// Get an int value that may be unavailable
+    /// </summary>
+    /// <param name="param">XPath</param>
+    /// <returns></returns>
+    public int GetPossiblyUnavailableInt (string param)
+    {
+      return int.Parse (this.GetPossiblyUnavailableString (param));
+    }
+
+    /// <summary>
+    /// Get a long value
+    /// </summary>
+    /// <param name="param">XPath</param>
+    /// <returns></returns>
+    public long GetLong (string param)
+    {
+      return long.Parse (this.GetString (param));
+    }
+
+    /// <summary>
+    /// Get a long value that may be unavailable
+    /// </summary>
+    /// <param name="param">XPath</param>
+    /// <returns></returns>
+    public long GetPossiblyUnavailableLong (string param)
+    {
+      return long.Parse (this.GetPossiblyUnavailableString (param));
+    }
+
+    /// <summary>
+    /// Get a double value
+    /// </summary>
+    /// <param name="param">XPath</param>
+    /// <returns></returns>
+    public double GetDouble (string param)
+    {
+      var usCultureInfo = new CultureInfo ("en-US"); // Point is the decimal separator
+      return double.Parse (this.GetString (param),
+                           usCultureInfo);
+    }
+
+    /// <summary>
+    /// Get a double value that may be unavailable
+    /// </summary>
+    /// <param name="param">XPath</param>
+    /// <returns></returns>
+    public double GetPossiblyUnavailableDouble (string param)
+    {
+      var usCultureInfo = new CultureInfo ("en-US"); // Point is the decimal separator
+      return double.Parse (this.GetPossiblyUnavailableString (param),
+                           usCultureInfo);
+    }
+
+    /// <summary>
+    /// Get a position from string with three values
+    /// 
+    /// For example: 1.0 0.45 2.3
+    /// </summary>
+    /// <param name="param">XPath</param>
+    /// <returns></returns>
+    public Position GetPosition (string param)
+    {
+      string[] values = this.GetString (param).Split (' ');
+      if (values.Length != 3) {
+        log.ErrorFormat ("GetPosition: " +
+                         "number of values is {0} and not 3",
+                         values.Length);
+      }
+      var position = new Position ();
+      var usCultureInfo = new CultureInfo ("en-US"); // Point is the decimal separator
+      position.X = double.Parse (values [0], usCultureInfo);
+      position.Y = double.Parse (values [1], usCultureInfo);
+      position.Z = double.Parse (values [2], usCultureInfo);
+      return position;
+    }
+    
+    /// <summary>
+    /// Convert an ON/OFF string into a boolean value
+    /// </summary>
+    /// <param name="param"></param>
+    /// <returns></returns>
+    public bool GetOnOff (string param)
+    {
+      string v = this.GetString (param);
+      if (object.Equals ("ON", v)) {
+        return true;
+      }
+      else if (object.Equals ("OFF", v)) {
+        return false;
+      }
+      else {
+        log.ErrorFormat ("GetOnOff: " +
+                         "{0} is not a valid ON/OFF value",
+                         v);
+        throw new Exception ("Invalid ON/OFF value");
+      }
+    }
+    
+    /// <summary>
+    /// Get the program name.
+    /// This is the same as GetString, except the block internal values
+    /// are cleaned in case the program name changes
+    /// </summary>
+    /// <param name="param"></param>
+    /// <returns></returns>
+    public string GetProgramName (string param)
+    {
+      string program = GetString (param);
+      if (null == this.m_programName) {
+        this.m_programName = program;
+      }
+      else if (!program.Equals (this.m_programName)) {
+        log.DebugFormat ("GetProgramName: " +
+                         "program name was updated from {0} to {1} " +
+                         "=> clean the block internal values",
+                         this.m_programName, program);
+        this.m_blockValues.Clear ();
+        this.m_programName = program;
+      }
+      
+      return program;
+    }
+
+    /// <summary>
+    /// Get the program operation comment from program file.
+    /// The path to the program file folder is passed as parameter
+    /// File extension forced to .EIA
+    /// </summary>
+    /// <param name="param"></param>
+    /// <returns></returns>
+    public string GetProgramOperationComment (string param)
+    {
+      string comment = null;
+      string programFilePath = "";
+
+      string fileExtension = DEFAULT_PROGRAMFILE_EXTENSION;
+      if (!string.IsNullOrEmpty (ProgramFileExtension)) {
+        fileExtension = (ProgramFileExtension.Equals ("none") ? null : ProgramFileExtension);
+      }
+
+      if (!string.IsNullOrEmpty (SharedProgramFolder)) {
+        if (!string.IsNullOrEmpty (m_programName)) {
+          programFilePath = SharedProgramFolder + 
+                            SHARED_PATH_SEPARATOR + 
+                            m_programName +
+                            fileExtension;
+        }
+        else {
+          log.DebugFormat ("GetProgramOperationComment: no program name");
+        }
+      }
+      else {
+        log.ErrorFormat ("GetProgramOperationComment: SharedProgramFolder is not set");
+      }
+      log.DebugFormat ("GetProgramOperationComment: path: {0}", programFilePath);
+      comment = GetCommentFromFile(programFilePath);
+      return comment;
+    }
+
+    /// <summary>
+    /// parse the program file and extract first line starting with "(POMAMO PART=)"
+    /// The path to the program file folder is passed as parameter
+    /// </summary>
+    /// <param name="programFilePath"></param>
+    /// <returns></returns>
+    public string GetCommentFromFile (string programFilePath)
+    {
+      string comment = null;
+      string searchString = DEFAULT_COMMENT_SEARCH_STRING;
+      if (!string.IsNullOrEmpty (CommentSearchString)) {
+        searchString = CommentSearchString;
+      }
+      bool commentFound = false;
+      log.DebugFormat ("GetCommentFromFile: file: {0}", programFilePath);
+      // TODO ??? test file date for change ????
+
+      try {
+        using (StreamReader reader = new StreamReader (programFilePath)) {
+          while (!commentFound && !reader.EndOfStream) {
+            string line = reader.ReadLine ();
+            // log.DebugFormat ("GetCommentFromFile: line: {0}", line);
+            if (line.IndexOf (searchString, 0) != -1) {
+              log.DebugFormat ("GetCommentFromFile: line found: {0}", line);
+              comment = line;
+              commentFound = true;
+            }
+          }
+        }
+        if (!commentFound) {
+          log.DebugFormat ("GetCommentFromFile: no comment line found in: {0}", programFilePath);
+        }
+      }
+      catch(Exception e) {
+        log.ErrorFormat ("GetCommentFromFile: failed to read file: {0}, {1}", programFilePath, e);
+      }
+      log.DebugFormat ("GetCommentFromFile: comment: {0}", comment);
+      return comment;
+    }
+
+    #endregion // Methods
+  }
+}
