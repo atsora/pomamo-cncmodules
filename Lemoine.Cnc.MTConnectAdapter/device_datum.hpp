@@ -170,7 +170,8 @@ public:
     eREADY,
     eINTERRUPTED,
     eSTOPPED,
-    eACTIVE
+    eACTIVE,
+    eFEED_HOLD
   };
   
 protected:

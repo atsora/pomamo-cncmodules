@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2008, AMT ‚Äì The Association For Manufacturing Technology (‚ÄúAMT‚Äù)
+* Copyright (c) 2008, AMT ñ The Association For Manufacturing Technology (ìAMTî)
 * 2009-2023 Lemoine Automation Technologies
 * All rights reserved.
 *
@@ -31,7 +31,6 @@
 * THIS AGREEMENT, USE OR INABILITY TO USE MTCONNECT MATERIALS, WHETHER OR NOT
 * SUCH PARTY HAD ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES.
 */
-
 #pragma once
 
 #include <Windows.h>
@@ -76,9 +75,10 @@ namespace Lemoine
       Sample *c;
       Sample *feedrate;
       Sample *spindleSpeed;
-      Sample *spindleLoad;
       Sample *feedrateOverride;
       Sample *spindleSpeedOverride;
+      IntEvent* cncPartCount;
+      Event* toolNumber;
 
     public: // Getters / Setters
       /// <summary>
@@ -139,7 +139,7 @@ namespace Lemoine
       /// <summary>
       /// Position (set only X, Y and Z)
       ///
-      /// Sample names: Xact, Yact, Zact
+      /// Sample names: 
       /// </summary>
       property Lemoine::Cnc::Position PositionXYZ
       {
@@ -149,7 +149,7 @@ namespace Lemoine
       /// <summary>
       /// Position (set all the positions: X, Y, Z, U, V, W, A, B, C)
       ///
-      /// Sample names: Xact, Yact, Zact, Uact, Vact, Wact, Apos, Bpos, Cpos
+      /// Sample names: 
       /// </summary>
       property Lemoine::Cnc::Position Position
       {
@@ -257,16 +257,6 @@ namespace Lemoine
       }
 
       /// <summary>
-      /// Spindle load
-      ///
-      /// Sample name: spindle_load
-      /// </summary>
-      property double SpindleLoad
-      {
-        void set (double value);
-      }
-
-      /// <summary>
       /// Spindle speed
       ///
       /// Sample name: spindle_speed
@@ -274,6 +264,46 @@ namespace Lemoine
       property double SpindleSpeed
       {
         void set (double value);
+      }
+
+      /// <summary>
+      /// Auto status
+      ///
+      /// Event name: mode
+      /// </summary>
+      property bool Auto
+      {
+        void set(bool value);
+      }
+
+      /// <summary>
+      /// MDI status
+      ///
+      /// Event name: mode
+      /// </summary>
+      property bool MDI
+      {
+        void set(bool value);
+      }
+
+      /// <summary>
+      /// Jog status
+      ///
+      /// Event name: mode
+      /// </summary>
+      property bool Jog
+      {
+        void set(bool value);
+      }
+
+      /// <summary>
+      /// ManualAny status
+      ///
+      /// Event name: mode
+      /// </summary>
+      property bool ManualAny
+      {
+        void set(bool value);
       }
 
       /// <summary>
@@ -322,6 +352,26 @@ namespace Lemoine
       /// Event name: program
       /// </summary>
       property String^ ProgramName
+      {
+        void set (String^ value);
+      }
+
+      /// <summary>
+      /// Part count
+      /// 
+      /// Event name: 
+      /// </summary>
+      property int CncPartCount
+      {
+        void set (int value);
+      }
+
+      /// <summary>
+      /// Tool number
+      /// 
+      /// Event name:
+      /// </summary>
+      property String^ ToolNumber
       {
         void set (String^ value);
       }

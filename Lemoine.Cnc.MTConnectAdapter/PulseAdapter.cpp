@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2008, AMT â€“ The Association For Manufacturing Technology (â€œAMTâ€)
+* Copyright (c) 2008, AMT – The Association For Manufacturing Technology (“AMT”)
 * 2009-2023 Lemoine Automation Technologies
 * All rights reserved.
 *
@@ -54,10 +54,11 @@ namespace Lemoine
       , b (NULL)
       , c (NULL)
       , feedrate (NULL)
-      , spindleLoad (NULL)
       , spindleSpeed (NULL)
       , feedrateOverride (NULL)
       , spindleSpeedOverride (NULL)
+      , cncPartCount (NULL)
+      , toolNumber (NULL)
     {
       log = LogManager::GetLogger (String::Format ("{0}.{1}",
         PulseAdapter::typeid->FullName,
@@ -108,9 +109,6 @@ namespace Lemoine
       if (NULL != feedrate) {
         delete feedrate;
       }
-      if (NULL != spindleLoad) {
-        delete spindleLoad;
-      }
       if (NULL != spindleSpeed) {
         delete spindleSpeed;
       }
@@ -119,6 +117,12 @@ namespace Lemoine
       }
       if (NULL != spindleSpeedOverride) {
         delete spindleSpeedOverride;
+      }
+      if (NULL != cncPartCount) {
+        delete cncPartCount;
+      }
+      if (NULL != toolNumber) {
+        delete toolNumber;
       }
     }
 
@@ -186,7 +190,7 @@ namespace Lemoine
     void PulseAdapter::X::set (double value)
     {
       if (NULL == x) {
-        x = new Sample ("Xact");
+        x = new Sample ("X1actm");
         addDatum (*x);
       }
       x->setValue (value);
@@ -196,7 +200,7 @@ namespace Lemoine
     void PulseAdapter::Y::set (double value)
     {
       if (NULL == y) {
-        y = new Sample ("Yact");
+        y = new Sample ("Y1actm");
         addDatum (*y);
       }
       y->setValue (value);
@@ -206,7 +210,7 @@ namespace Lemoine
     void PulseAdapter::Z::set (double value)
     {
       if (NULL == z) {
-        z = new Sample ("Zact");
+        z = new Sample ("Z1actm");
         addDatum (*z);
       }
       z->setValue (value);
@@ -216,7 +220,7 @@ namespace Lemoine
     void PulseAdapter::U::set (double value)
     {
       if (NULL == u) {
-        u = new Sample ("Uact");
+        u = new Sample ("U1actm");
         addDatum (*u);
       }
       u->setValue (value);
@@ -226,7 +230,7 @@ namespace Lemoine
     void PulseAdapter::V::set (double value)
     {
       if (NULL == v) {
-        v = new Sample ("Vact");
+        v = new Sample ("V1actm");
         addDatum (*v);
       }
       v->setValue (value);
@@ -236,7 +240,7 @@ namespace Lemoine
     void PulseAdapter::W::set (double value)
     {
       if (NULL == w) {
-        w = new Sample ("Wact");
+        w = new Sample ("W1actm");
         addDatum (*w);
       }
       w->setValue (value);
@@ -246,7 +250,7 @@ namespace Lemoine
     void PulseAdapter::A::set (double value)
     {
       if (NULL == a) {
-        a = new Sample ("Apos");
+        a = new Sample ("A1actm");
         addDatum (*a);
       }
       a->setValue (value);
@@ -256,7 +260,7 @@ namespace Lemoine
     void PulseAdapter::B::set (double value)
     {
       if (NULL == b) {
-        b = new Sample ("Bpos");
+        b = new Sample ("B1actm");
         addDatum (*b);
       }
       b->setValue (value);
@@ -266,7 +270,7 @@ namespace Lemoine
     void PulseAdapter::C::set (double value)
     {
       if (NULL == c) {
-        c = new Sample ("Cpos");
+        c = new Sample ("C1actm");
         addDatum (*c);
       }
       c->setValue (value);
@@ -276,37 +280,75 @@ namespace Lemoine
     void PulseAdapter::Feedrate::set (double value)
     {
       if (NULL == feedrate) {
-        feedrate = new Sample ("path_feedrate");
+        feedrate = new Sample ("p1Fact");
         addDatum (*feedrate);
       }
       feedrate->setValue (value);
       Available = true;
     }
 
-    void PulseAdapter::SpindleLoad::set (double value)
-    {
-      if (NULL == spindleLoad) {
-        spindleLoad = new Sample ("spindle_load");
-        addDatum (*spindleLoad);
-      }
-      spindleLoad->setValue (value);
-      Available = true;
-    }
-
     void PulseAdapter::SpindleSpeed::set (double value)
     {
       if (NULL == spindleSpeed) {
-        spindleSpeed = new Sample ("spindle_speed");
+        spindleSpeed = new Sample ("LS1speed");
         addDatum (*spindleSpeed);
       }
       spindleSpeed->setValue (value);
       Available = true;
     }
 
+    void PulseAdapter::Auto::set(bool value)
+    {
+      if (NULL == mode) {
+        mode = new ControllerMode("pmode");
+        addDatum(*mode);
+      }
+      if (true == value) {
+        mode->setValue(ControllerMode::eAUTOMATIC);
+        Available = true;
+      }
+    }
+
+    void PulseAdapter::MDI::set(bool value)
+    {
+      if (NULL == mode) {
+        mode = new ControllerMode("pmode");
+        addDatum(*mode);
+      }
+      if (true == value) {
+        mode->setValue(ControllerMode::eMANUAL_DATA_INPUT);
+        Available = true;
+      }
+    }
+
+    void PulseAdapter::Jog::set(bool value)
+    {
+      if (NULL == mode) {
+        mode = new ControllerMode("pmode");
+        addDatum(*mode);
+      }
+      if (true == value) {
+        mode->setValue(ControllerMode::eMANUAL);
+        Available = true;
+      }
+    }
+
+    void PulseAdapter::ManualAny::set(bool value)
+    {
+      if (NULL == mode) {
+        mode = new ControllerMode("pmode");
+        addDatum(*mode);
+      }
+      if (true == value) {
+        mode->setValue(ControllerMode::eMANUAL);
+        Available = true;
+      }
+    }
+
     void PulseAdapter::Manual::set (bool value)
     {
       if (NULL == mode) {
-        mode = new ControllerMode ("mode");
+        mode = new ControllerMode ("pmode");
         addDatum (*mode);
       }
       if (true == value) {
@@ -321,7 +363,7 @@ namespace Lemoine
     void PulseAdapter::FeedrateOverride::set (long value)
     {
       if (NULL == feedrateOverride) {
-        feedrateOverride = new Sample ("feed_ovr");
+        feedrateOverride = new Sample ("pFovr");
         addDatum (*feedrateOverride);
       }
       feedrateOverride->setValue (value);
@@ -331,7 +373,7 @@ namespace Lemoine
     void PulseAdapter::SpindleSpeedOverride::set (long value)
     {
       if (NULL == spindleSpeedOverride) {
-        spindleSpeedOverride = new Sample ("SspeedOvr");
+        spindleSpeedOverride = new Sample ("S1ovr");
         addDatum (*spindleSpeedOverride);
       }
       spindleSpeedOverride->setValue (value);
@@ -341,7 +383,7 @@ namespace Lemoine
     void PulseAdapter::Running::set (bool value)
     {
       if (NULL == execution) {
-        execution = new Execution ("execution");
+        execution = new Execution ("pexecution");
         addDatum (*execution);
       }
       if (true == value) {
@@ -356,12 +398,35 @@ namespace Lemoine
     void PulseAdapter::ProgramName::set (String^ value)
     {
       if (NULL == programName) {
-        programName = new Event ("program");
+        programName = new Event ("pprogram");
         addDatum (*programName);
       }
 
       programName->setValue (Lemoine::Conversion::ConvertToStdString (value).c_str ());
       Available = true;
     }
+
+    void PulseAdapter::CncPartCount::set(int value)
+    {
+      if (NULL == cncPartCount) {
+        cncPartCount = new IntEvent("ppartcount");
+        addDatum(*cncPartCount);
+      }
+
+      cncPartCount->setValue(value);
+      Available = true;
+    }
+
+    void PulseAdapter::ToolNumber::set(String^ value)
+    {
+      if (NULL == toolNumber) {
+        toolNumber = new Event("p1CurrentTool");
+        addDatum(*toolNumber);
+      }
+
+      toolNumber->setValue(Lemoine::Conversion::ConvertToStdString(value).c_str());
+      Available = true;
+    }
+
   }
 }
