@@ -27,6 +27,7 @@ namespace Lemoine.Cnc
     bool m_echo = true;
     string m_threeInOne = null;
     bool m_threeInOneRequested = false;
+    string m_programName = null;
     #endregion
 
     #region Getters / Setters
@@ -93,9 +94,26 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Program name
     /// 
-    /// This is only known when the machine is idle
+    /// If the machine is running, then get the program name from cache
     /// </summary>
-    public string ProgramName => this.ThreeInOne.Split (new string[] { ", ", "," }, StringSplitOptions.None)[1];
+    public string ProgramName
+    {
+      get {
+        try {
+          m_programName = this.ThreeInOne.Split (new string[] { ", ", "," }, StringSplitOptions.None)[1];
+          return m_programName;
+        }
+        catch (Exception) {
+          if (m_programName is null) {
+            throw;
+          }
+          else {
+            return m_programName;
+          }
+        }
+      }
+    }
+
 
     /// <summary>
     /// Part count from ThreeInOne
