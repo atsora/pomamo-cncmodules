@@ -14,7 +14,7 @@
   </ItemGroup>
   
   <ItemGroup>
-    <None Include="..\..\3rdParty\EthernetIP\plctag.dll" Visible="False" CopyToOutputDirectory="Always" /> 
+    <None Include="..\..\..\..\pomamo-cnc-extern\EthernetIP\plctag.dll" Visible="False" CopyToOutputDirectory="Always" /> 
   </ItemGroup>
   
 </Project>

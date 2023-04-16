@@ -14,9 +14,9 @@
   </ItemGroup>
   
   <ItemGroup>
-    <None Include="..\..\3rdParty\Fapi\FapiCorbaLib.dll" CopyToOutputDirectory="Always" />
-    <None Include="..\..\3rdParty\Fapi\omniORB410_vc6_rt.dll" CopyToOutputDirectory="Always" />
-    <None Include="..\..\3rdParty\Fapi\omnithread33_vc6_rt.dll" CopyToOutputDirectory="Always" />
+    <None Include="..\..\..\..\pomamo-cnc-extern\Fapi\FapiCorbaLib.dll" CopyToOutputDirectory="Always" />
+    <None Include="..\..\..\..\pomamo-cnc-extern\Fapi\omniORB410_vc6_rt.dll" CopyToOutputDirectory="Always" />
+    <None Include="..\..\..\..\pomamo-cnc-extern\Fapi\omnithread33_vc6_rt.dll" CopyToOutputDirectory="Always" />
   </ItemGroup>
   
 </Project>

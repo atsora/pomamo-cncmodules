@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <Reference Include="NHibernate">
-      <HintPath>..\..\..\3rdParty\NHibernateAndCo\NHibernate\Required_Bins\NHibernate.dll</HintPath>
+      <HintPath>..\..\..\..\pomamo-extern\NHibernateAndCo\NHibernate\Required_Bins\NHibernate.dll</HintPath>
       <Private>false</Private>    
     </Reference>
   </ItemGroup>

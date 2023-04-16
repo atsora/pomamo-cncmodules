@@ -9,11 +9,11 @@
 
   <ItemGroup>
     <Reference Include="IIOPChannel">
-      <HintPath>..\..\..\3rdParty\IIOP.NET\IIOPChannel.dll</HintPath>
+      <HintPath>..\..\..\..\pomamo-extern\IIOP.NET\IIOPChannel.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Lemoine.Corba.Fidia">
-      <HintPath>..\..\3rdParty\Fidia\Lemoine.Corba.Fidia.dll</HintPath>
+      <HintPath>..\..\..\..\pomamo-cnc-extern\Fidia\Lemoine.Corba.Fidia.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
