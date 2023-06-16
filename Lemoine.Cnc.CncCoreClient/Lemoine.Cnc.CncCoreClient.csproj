@@ -4,7 +4,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyOriginatorKeyFile>..\..\..\PulseKeyFileV2.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>..\..\..\PulseKeyFile.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   
   <ItemGroup>

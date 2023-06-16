@@ -44,6 +44,11 @@ namespace Lemoine.Cnc
     /// Acquisition error
     /// </summary>
     public bool AcquisitionError => m_dataRequested && !m_pages.Any ();
+
+    /// <summary>
+    /// By default, this is disable in .Net Core. Force it in .Net Core
+    /// </summary>
+    public bool ForceNetCore { get; set; } = false;
     #endregion // Getters / Setters
 
     #region Constructors / Destructor / ToString methods
@@ -73,6 +78,12 @@ namespace Lemoine.Cnc
     /// <returns>success</returns>
     public bool Start ()
     {
+#if NETCOREAPP
+      if (!this.ForceNetCore) {
+        return false;
+      }
+#endif // NETCOREAPP
+
       m_dataRequested = false;
       m_httpAlarmData = null;
       this.Alarms = null;
@@ -204,6 +215,12 @@ namespace Lemoine.Cnc
     /// </summary>
     public IList<CncAlarm> CompleteWithHttpAlarms (string _)
     {
+#if NETCOREAPP
+      if (!this.ForceNetCore) {
+        throw new NotSupportedException (".Net Core not supported");
+      }
+#endif // NETCOREAPP
+
       if (this.Alarms is null) {
         log.Error ($"CompleteWithHttpAlarms: Alarms is null");
         throw new Exception ("Alarms were not set before");

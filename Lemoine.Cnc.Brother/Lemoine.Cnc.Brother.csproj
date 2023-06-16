@@ -3,8 +3,7 @@
   <Sdk Name="Microsoft.Build.CentralPackageVersions" Version="2.0.1" />
 
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
-    <!--TargetFrameworks>net48;netcoreapp3.0</TargetFrameworks--><!-- on .Net Core, the HTTP protocol is not supported -->
+    <TargetFrameworks>net48;net6.0</TargetFrameworks>
     <AssemblyOriginatorKeyFile>..\..\..\PulseKeyFile.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
