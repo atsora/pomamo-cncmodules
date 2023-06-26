@@ -16,10 +16,10 @@ namespace Lemoine.Cnc
     #region Members
     double m_feedrate = -1.0; // Not set
     double m_feedrateUS = -1.0; // Not set
-    double m_feedrateThreshold = 1.0;
+    double m_feedrateThreshold = 0.5;
     double m_rapidTraverseRate = -1.0; // Not set
     double m_rapidTraverseRateUS = -1.0; // Not set
-    double m_rapidTraverseRateThreshold = 1.0;
+    double m_rapidTraverseRateThreshold = 0.5;
     double m_spindleSpeed = 0.0;
     bool m_spindleSpeedSet = false;
     double m_spindleSpeedThreshold = 0.0;
@@ -29,7 +29,7 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Feedrate threshold in mm
     /// 
-    /// Default value is 1.0
+    /// Default value is 0.5
     /// </summary>
     public double FeedrateThreshold
     {
@@ -40,7 +40,7 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Rapid traverse rate threshold in mm
     /// 
-    /// Default value is 1.0
+    /// Default value is 0.5
     /// </summary>
     public double RapidTraverseRateThreshold
     {
@@ -66,8 +66,7 @@ namespace Lemoine.Cnc
     {
       get {
         if (-1 == m_feedrate) {
-          log.ErrorFormat ("Feedrate.get: " +
-                           "the feedrate is unknown");
+          log.Error ("Feedrate.get: the feedrate is unknown");
           throw new Exception ("Unknown feedrate");
         }
         return m_feedrate;
@@ -82,8 +81,7 @@ namespace Lemoine.Cnc
     {
       get {
         if (-1 == m_rapidTraverseRate) {
-          log.ErrorFormat ("RapidTraverseRate.get: " +
-                           "the rapid traverse rate is unknown");
+          log.Error ("RapidTraverseRate.get: the rapid traverse rate is unknown");
           throw new Exception ("Unknown rapid traverse rate");
         }
         return m_rapidTraverseRate;
@@ -98,8 +96,7 @@ namespace Lemoine.Cnc
     {
       get {
         if (-1 == m_feedrateUS) {
-          log.ErrorFormat ("FeedrateUS.get: " +
-                           "the feedrate US is unknown");
+          log.Error ("FeedrateUS.get: the feedrate US is unknown");
           throw new Exception ("Unknown feedrate US");
         }
         return m_feedrateUS;
@@ -114,8 +111,7 @@ namespace Lemoine.Cnc
     {
       get {
         if (-1 == m_rapidTraverseRateUS) {
-          log.ErrorFormat ("RapidTraverseRateUS.get: " +
-                           "the rapid traverse rate US is unknown");
+          log.Error ("RapidTraverseRateUS.get: the rapid traverse rate US is unknown");
           throw new Exception ("Unknown rapid traverse rate US");
         }
         return m_rapidTraverseRateUS;
@@ -130,8 +126,7 @@ namespace Lemoine.Cnc
     {
       get {
         if (!m_spindleSpeedSet) {
-          log.DebugFormat ("SpindleSpeed.get: " +
-                           "the spindle speed is unknown");
+          log.Debug ("SpindleSpeed.get: the spindle speed is unknown");
           throw new Exception ("Unknown spindle speed");
         }
         return m_spindleSpeed;

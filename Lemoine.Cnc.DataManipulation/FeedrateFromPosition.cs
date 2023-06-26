@@ -40,9 +40,9 @@ namespace Lemoine.Cnc
     /// </summary>
     static readonly double DEFAULT_MIN_FEEDRATE_FROM_POSITION = -1; // mm/min
     /// <summary>
-    /// Default jitter threshold in mm. Default is 0.1 mm
+    /// Default jitter threshold in mm. Default is 0.06 mm
     /// </summary>
-    static readonly double DEFAULT_JITTER_THRESHOLD = 0.1;
+    static readonly double DEFAULT_JITTER_THRESHOLD = 0.06;
     /// <summary>
     /// Default number of positions for the jitter filter is 6
     /// </summary>
@@ -58,7 +58,7 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Default minimum distance to trigger a motion in mm
     /// </summary>
-    static readonly double DEFAULT_MIN_DISTANCE_MOTION_THRESHOLD = 0.2; // mm
+    static readonly double DEFAULT_MIN_DISTANCE_MOTION_THRESHOLD = 0.08; // mm
     /// <summary>
     /// Default minimum angle movement from which a machine
     /// can be considered running is 0.1
