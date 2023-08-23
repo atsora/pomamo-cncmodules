@@ -11,11 +11,8 @@ namespace Lemoine.Cnc
   /// </summary>
   internal class TCPCompletionCodeException : Exception
   {
-    #region Members
     readonly int m_completionCode;
-    #endregion // Members
 
-    #region Constructors
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -24,9 +21,7 @@ namespace Lemoine.Cnc
     {
       m_completionCode = completionCode;
     }
-    #endregion // Constructors
 
-    #region Methods
     /// <summary>
     /// Message of the alarm
     /// </summary>
@@ -270,8 +265,5 @@ namespace Lemoine.Cnc
         return message;
       }
     }
-
-
-    #endregion // Methods
   }
 }
