@@ -18,8 +18,6 @@ namespace Lemoine.Cnc.Module.Brother
   {
     readonly ILog log = LogManager.GetLogger (typeof (CncAlarmBuilder).FullName);
 
-    internal AlarmTranslator_Default m_alarmTranslator = null;
-
     #region Getters / Setters
     #endregion // Getters / Setters
 
@@ -134,77 +132,7 @@ namespace Lemoine.Cnc.Module.Brother
         return null;
       }
 
-      var alarm = new CncAlarm ("Brother", "Alarm", txt);
-
-      // Possibly associate a translation
-      LoadAlarmTranlator ("alarms_brother_B0.csv");
-      if (m_alarmTranslator != null) {
-        m_alarmTranslator.ProcessAlarm (alarm);
-      }
-
-      // No more information for now
-      return alarm;
-    }
-
-    void LoadAlarmTranlator (string fileName)
-    {
-      if (null != m_alarmTranslator) {
-        if (log.IsDebugEnabled) {
-          log.Debug ($"LoadAlarmTranlator: alarm translator already set => return");
-        }
-        return;
-      }
-
-      try {
-        string fileContent = GetAlarmFileContent (fileName);
-        m_alarmTranslator = new AlarmTranslator_Default ();
-        if (m_alarmTranslator.InitializeWithContent (fileContent)) {
-          log.Info ($"LoadAlarmTranlator: successfully read alarms from file {fileName}");
-        }
-        else {
-          log.Error ($"LoadAlarmTranlator: error while reading machine alarms from {fileName}");
-          m_alarmTranslator = null;
-        }
-      }
-      catch (Exception ex) {
-        log.Error ($"LoadAlarmTranlator: error while reading machine alarms {fileName}", ex);
-        m_alarmTranslator = null;
-      }
-    }
-
-    string GetAlarmFileContent (string fileName)
-    {
-      string filePath = Path.Combine (Path.GetDirectoryName (System.Reflection.Assembly.GetExecutingAssembly ().Location), fileName);
-      if (File.Exists (filePath)) {
-        log.Info ($"GetAlarmFileContent: read alarm definition from file {filePath}");
-        return File.ReadAllText (filePath);
-      }
-      else {
-        log.Info ($"GetAlarmFileContent: file {filePath} does not exist");
-      }
-
-      return GetAlarmFileContentFromEmbeddedResource (fileName);
-    }
-
-    string GetAlarmFileContentFromEmbeddedResource (string fileName)
-    {
-      string resourceName = $"Lemoine.Cnc.Brother.{fileName}";
-      try {
-        var assembly = GetType ().Assembly;
-        using (Stream stream = assembly.GetManifestResourceStream (resourceName)) {
-          if (stream is null) {
-            log.Error ($"GetAlarmFileContentFromEmbeddedResource: stream null, resource {resourceName} not found ?");
-            throw new Exception ("Resource not found");
-          }
-          using (var reader = new StreamReader (stream)) {
-            return reader.ReadToEnd ();
-          }
-        }
-      }
-      catch (Exception ex) {
-        log.Error ($"GetAlarmFileContentFromEmbeddedResource: exception", ex);
-        throw;
-      }
+      return new CncAlarm ("Brother", "Alarm", txt);
     }
 
     public CncAlarm CreateAlarm (string txt)
