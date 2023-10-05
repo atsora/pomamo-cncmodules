@@ -8,12 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Libraries\Lemoine.Core\Lemoine.Core.csproj" AdditionalProperties="TargetFramework=netstandard2.0" />
-    <ProjectReference Include="..\..\Lemoine.Cnc.ICncModule\Lemoine.Cnc.ICncModule.csproj" AdditionalProperties="TargetFramework=netstandard2.0" />
-    <ProjectReference Include="..\..\Libraries\Lemoine.Cnc.CncAlarm\Lemoine.Cnc.CncAlarm.csproj" />
+    <ProjectReference Include="..\..\Libraries\Pomamo.CncModule\Pomamo.CncModule.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="log4net" />
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" />
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Configuration" />
   </ItemGroup>

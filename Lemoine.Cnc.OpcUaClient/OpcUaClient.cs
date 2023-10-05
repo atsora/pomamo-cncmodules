@@ -1,9 +1,9 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2023 Atsora Solutions
 //
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: GPL-2.0
 
-using Lemoine.Conversion;
-using Lemoine.Core.Log;
+using log4net;
 using Opc.Ua;
 using Opc.Ua.Configuration;
 using System;
@@ -20,9 +20,11 @@ namespace Lemoine.Cnc
   /// OPC UA client module
   /// </summary>
   public sealed class OpcUaClient
-    : Lemoine.Cnc.BaseCncModule, Lemoine.Cnc.ICncModule, IDisposable
+    : Pomamo.CncModule.ICncModule, IDisposable
   {
-    readonly IAutoConverter m_converter = new DefaultAutoConverter ();
+    ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.OpcUaClient");
+    readonly Lemoine.Cnc.OpcUaConverter m_converter = new Lemoine.Cnc.OpcUaConverter ();
+    int m_cncAcquisitionId = 0;
     readonly IList<string> m_listParameters = new List<string> ();
     bool m_queryReady = false;
     readonly NodeManager m_nodeManager;
@@ -30,6 +32,23 @@ namespace Lemoine.Cnc
     UAClient m_client = null;
     string m_defaultNamespace;
     int m_defaultNamespaceIndex = -1;
+
+    /// <summary>
+    /// <see cref="Pomamo.CncModule.ICncModule"/>
+    /// </summary>
+    public int CncAcquisitionId
+    {
+      get { return m_cncAcquisitionId; }
+      set {
+        m_cncAcquisitionId = value;
+        log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.UAClient.{value}");
+      }
+    }
+
+    /// <summary>
+    /// <see cref="Pomamo.CncModule.ICncModule"/>
+    /// </summary>
+    public string CncAcquisitionName { get; set; }
 
     /// <summary>
     /// OPC UA Server Url
@@ -82,7 +101,6 @@ namespace Lemoine.Cnc
     /// Description of the constructor
     /// </summary>
     public OpcUaClient ()
-      : base ("Lemoine.Cnc.In.OpcUaClient")
     {
       m_nodeManager = new NodeManager (this.CncAcquisitionId);
     }
@@ -98,6 +116,24 @@ namespace Lemoine.Cnc
       }
 
       GC.SuppressFinalize (this);
+    }
+
+    string GetPkiDirectory ()
+    {
+      var localApplicationData = Environment
+        .GetFolderPath (Environment.SpecialFolder.LocalApplicationData);
+      if (string.IsNullOrEmpty (localApplicationData)) {
+        log.Error ($"GetPkiDirectory: LocalApplicationData {localApplicationData} is not defined");
+        var home = Environment.GetEnvironmentVariable ("HOME");
+        if (string.IsNullOrEmpty (home)) {
+          log.Error ($"GetPkiDirectory: HOME {home} is not defined");
+        }
+        else {
+          localApplicationData = Path.Combine (home, ".local", "share");
+          log.Info ($"GetPkiDirectory: fallback localApplicationData to {localApplicationData} from home {home}");
+        }
+      }
+      return Path.Combine (localApplicationData, "opcua", "pki");
     }
 
     ApplicationConfiguration GetConfiguration ()
@@ -123,7 +159,7 @@ namespace Lemoine.Cnc
           MinSubscriptionLifetime = 10000,
         },
       };
-      string pkiDirectory = Path.Combine (Lemoine.Info.PulseInfo.LocalConfigurationDirectory, "opcua", "pki");
+      var pkiDirectory = GetPkiDirectory ();
       configuration.SecurityConfiguration = new SecurityConfiguration {
         AutoAcceptUntrustedCertificates = true,
         RejectSHA1SignedCertificates = false,

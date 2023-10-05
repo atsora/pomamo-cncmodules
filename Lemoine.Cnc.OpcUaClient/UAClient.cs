@@ -39,7 +39,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
-using Lemoine.Core.Log;
+using System.Xml.Linq;
+using log4net;
 using Opc.Ua;
 using Opc.Ua.Client;
 
@@ -50,7 +51,7 @@ namespace Lemoine.Cnc
   /// </summary>
   sealed class UAClient
   {
-    readonly ILog log = LogManager.GetLogger (typeof (UAClient).FullName);
+    ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.OpcUaClient.UAClient");
 
     readonly ApplicationConfiguration m_configuration;
     Opc.Ua.Client.ISession m_session;

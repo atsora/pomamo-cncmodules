@@ -39,7 +39,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Lemoine.Core.Log;
+using log4net;
 using Opc.Ua;
 using Opc.Ua.Client;
 
