@@ -123,7 +123,7 @@ namespace Lemoine.Cnc
     public bool Start ()
     {
       // Executed only the first time
-      if (m_delectronCommand == null) {
+      if (m_delectronCommand is null) {
         // Preparation of the command storage, with mandatory commands
         m_storage = new CommandStorage (log);
         m_storage.StoreCommand (2, "ZZERCODE"); // CNC alarms

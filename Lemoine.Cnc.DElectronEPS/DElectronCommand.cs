@@ -17,11 +17,15 @@ namespace Lemoine.Cnc
   /// </summary>
   public class DElectronCommand
   {
+    static readonly string HAND_SHAKE_MAX_ERRORS_KEY = "Cnc.DElectronEPS.HandShakeMaxErrors"; // Before reconnection
+    static readonly int HAND_SHAKE_MAX_ERRORS_DEFAULT = 3;
+
     #region Members
     readonly IPEndPoint m_ipEndPoint;
     readonly ILog m_log;
     Socket m_socket = null;
     bool m_handShakeOk = false;
+    int m_handShakeErrors = 0;
     #endregion // Members
 
     /// <summary>
@@ -74,17 +78,24 @@ namespace Lemoine.Cnc
         try {
           var answer = Query (0, null); // Command number 0: connection request
           if (answer.Count () != 1) {
-            m_log.ErrorFormat ($"DElectronCommand.CheckConnection: Initial handshake doesn't return 1 value but {answer.Count ()}");
+            m_log.Error ($"DElectronCommand.CheckConnection: Initial handshake doesn't return 1 value but {answer.Count ()}");
             return false;
           }
           if (m_log.IsInfoEnabled) {
             var protocolVersion = answer.First ();
-            m_log.InfoFormat ($"DElectronCommand.CheckConnection: protocol version is {protocolVersion}");
+            m_log.Info ($"DElectronCommand.CheckConnection: protocol version is {protocolVersion}");
           }
           m_handShakeOk = true;
+          m_handShakeErrors = 0;
         }
         catch (Exception ex) {
           m_log.Error ($"DElectronCommand.CheckConnection: Couldn't handshake {m_ipEndPoint}", ex);
+          ++m_handShakeErrors;
+          var handShakeMaxErrors = Lemoine.Info.ConfigSet.LoadAndGet (HAND_SHAKE_MAX_ERRORS_KEY, HAND_SHAKE_MAX_ERRORS_DEFAULT);
+          if (handShakeMaxErrors <= m_handShakeErrors) {
+            m_log.Error ($"DElectronCommand.CheckConnection: max hand shake error {handShakeMaxErrors} reached => disconnect");
+            Disconnect ();
+          }
           return false;
         }
       }
@@ -166,7 +177,7 @@ namespace Lemoine.Cnc
       int bytesRec = m_socket.Receive (m_buffer);
       string answer = Encoding.ASCII.GetString (m_buffer, 0, bytesRec);
       if (m_log.IsInfoEnabled) {
-        m_log.Info ($"DElectronCommand.GetResonse: successfully received {answer.TrimEnd ('\n')} for {commandNumber}");
+        m_log.Info ($"DElectronCommand.GetResponse: successfully received {answer.TrimEnd ('\n')} for {commandNumber}");
       }
 
       // Cut the answer
