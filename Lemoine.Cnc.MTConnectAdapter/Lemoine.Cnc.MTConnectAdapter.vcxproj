@@ -185,6 +185,9 @@
     <ClInclude Include="string_buffer.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Libraries\Lemoine.Abstractions\Lemoine.Abstractions.csproj">
+      <Project>{337e3144-a45e-439c-82dc-6a5820654431}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\..\Libraries\Lemoine.Core\Lemoine.Core.csproj">
       <Project>{25e11219-7ba1-45dd-b4ab-956074341683}</Project>
     </ProjectReference>

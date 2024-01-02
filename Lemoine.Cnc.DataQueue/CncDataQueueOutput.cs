@@ -410,7 +410,7 @@ namespace Lemoine.Cnc
           if (2 == queueConfigurations.Length) {
             localSubDirectory = queueConfigurations[1];
           }
-          QueueConfigurationFull queueConfFull = new QueueConfigurationFull (remoteQueueConfigurationPath, localSubDirectory, true, false);
+          QueueConfigurationFull queueConfFull = new QueueConfigurationFull (Lemoine.Extensions.ExtensionManager.ExtensionsProvider, remoteQueueConfigurationPath, localSubDirectory, true, false);
           m_queue = queueConfFull.CreateQueue (this.MachineId,
                                                this.MachineModuleId,
                                                defaultConfigReader);
