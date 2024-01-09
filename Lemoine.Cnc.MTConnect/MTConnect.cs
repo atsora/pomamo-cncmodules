@@ -14,7 +14,7 @@ namespace Lemoine.Cnc
   /// <summary>
   /// MTConnect input module
   /// </summary>
-  public partial class MTConnect: BaseCncModule, ICncModule, IDisposable
+  public partial class MTConnect : BaseCncModule, ICncModule, IDisposable
   {
     static readonly string RANDOM = "RANDOM";
     static readonly string UNAVAILABLE = "UNAVAILABLE";
@@ -32,12 +32,12 @@ namespace Lemoine.Cnc
     string m_mtconnectStreamsPrefix = DEFAULT_MTCONNECTSTREAMS_NAMESPACE_PREFIX;
     string m_blockPath = DEFAULT_BLOCK_PATH;
     string m_blockXPath = DEFAULT_BLOCK_XPATH;
-    
+
     bool m_error = true;
     XmlNamespaceManager m_streamsNs = null;
     XPathNavigator m_streamsNavigator;
     #endregion // Members
-    
+
     #region Getters / Setters
     /// <summary>
     /// MTConnect URL of the machine
@@ -79,7 +79,8 @@ namespace Lemoine.Cnc
     /// a default namespace is used.
     /// <see cref="MTConnectStreamsPrefix" />
     /// </summary>
-    public string Xmlns {
+    public string Xmlns
+    {
       get {
         string result = "";
         foreach (DictionaryEntry i in m_xmlns) {
@@ -89,7 +90,7 @@ namespace Lemoine.Cnc
       }
       set {
         m_xmlns.Clear ();
-        string[] xmlNamespaces = value.Split (new [] {';'}, StringSplitOptions.RemoveEmptyEntries);
+        string[] xmlNamespaces = value.Split (new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
         foreach (string xmlNamespace in xmlNamespaces) {
           string[] xmlNamespaceKeyValue = xmlNamespace.Split ('=');
           if (xmlNamespaceKeyValue.Length != 2) {
@@ -100,12 +101,12 @@ namespace Lemoine.Cnc
           }
           log.DebugFormat ("Xmlns.set: " +
                            "add prefix={0} uri={1}",
-                           xmlNamespaceKeyValue [0], xmlNamespaceKeyValue [1]);
-          m_xmlns [xmlNamespaceKeyValue [0]] = xmlNamespaceKeyValue [1];
+                           xmlNamespaceKeyValue[0], xmlNamespaceKeyValue[1]);
+          m_xmlns[xmlNamespaceKeyValue[0]] = xmlNamespaceKeyValue[1];
         }
       }
     }
-    
+
     /// <summary>
     /// MTConnectStreams namespace prefix that must be used in the XPath expressions.
     /// It is used to get the Header data (instance and nextSequence values).
@@ -113,36 +114,40 @@ namespace Lemoine.Cnc
     /// 
     /// Default is "m".
     /// </summary>
-    public string MTConnectStreamsPrefix {
+    public string MTConnectStreamsPrefix
+    {
       get { return m_mtconnectStreamsPrefix; }
       set { m_mtconnectStreamsPrefix = value; }
     }
-    
+
     /// <summary>
     /// XPath used in the URL to get the BLOCK.
     /// This is XPath related to the probe page (not the current or sample pages)
     /// 
     /// Default is "//Controller//DataItems/DataItem[@type='BLOCK']".
     /// </summary>
-    public string BlockPath {
+    public string BlockPath
+    {
       get { return m_blockPath; }
       set { m_blockPath = value; }
     }
-    
+
     /// <summary>
     /// XPath used to get a Block note in the sample request.
     /// 
     /// Default is "//m:Block"
     /// </summary>
-    public string BlockXPath {
+    public string BlockXPath
+    {
       get { return m_blockXPath; }
       set { m_blockXPath = value; }
     }
-    
+
     /// <summary>
     /// Error while getting the XML ?
     /// </summary>
-    public bool Error {
+    public bool Error
+    {
       get { return m_error; }
     }
     #endregion // Getters / Setters
@@ -151,10 +156,10 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Description of the constructor
     /// </summary>
-    public MTConnect () : base("Lemoine.Cnc.In.MTConnect")
+    public MTConnect () : base ("Lemoine.Cnc.In.MTConnect")
     {
     }
-    
+
     /// <summary>
     /// <see cref="IDisposable.Dispose" />
     /// </summary>
@@ -174,63 +179,65 @@ namespace Lemoine.Cnc
       // 1. Prepare streams
       m_error = true;
       try {
-        string url = Url.Contains(RANDOM) ?
-          Url.Replace(RANDOM, m_random.Next().ToString()) :
+        string url = Url.Contains (RANDOM) ?
+          Url.Replace (RANDOM, m_random.Next ().ToString ()) :
           Url;
-        
+
         // Streams navigator
         var document = new XPathDocument (url);
-        m_streamsNavigator = document.CreateNavigator();
-        
+        m_streamsNavigator = document.CreateNavigator ();
+
         // Namespace
-        m_streamsNs = CreateNamespace(m_streamsNavigator, m_mtconnectStreamsPrefix, DEFAULT_MTCONNECTSTREAMS_NAMESPACE);
-      } catch (Exception ex) {
-        log.ErrorFormat ("Start: " +
-                         "{0} raised when trying to load URL={1}",
-                         ex, this.Url);
+        m_streamsNs = CreateNamespace (m_streamsNavigator, m_mtconnectStreamsPrefix, DEFAULT_MTCONNECTSTREAMS_NAMESPACE);
+      }
+      catch (Exception ex) {
+        log.Error ($"Start: exception raised when trying to load URL={this.Url}", ex);
         throw ex;
       }
-      
+
       // No error
       m_error = false;
-      
+
       // 2. Prepare assets (for tool life management)
       try {
-        StartAssets();
-      } catch (Exception e) {
-        log.ErrorFormat("Start: failed starting assets: {0}", e);
+        StartAssets ();
       }
-      
+      catch (Exception ex) {
+        log.Error ("Start: failed starting assets", ex);
+      }
+
       // 3. Reset blocks
       m_hasBlocks = false;
     }
-    
-    XmlNamespaceManager CreateNamespace(XPathNavigator navigator, string prefix, string defaultNs)
+
+    XmlNamespaceManager CreateNamespace (XPathNavigator navigator, string prefix, string defaultNs)
     {
       XmlNamespaceManager nsManager = null;
       if (m_xmlns.Count == 0) {
         if (0 == prefix.Length) {
           // No namespace
           nsManager = null;
-          log.InfoFormat("Start: no namespace for MTConnect");
-        } else {
+          log.InfoFormat ("Start: no namespace for MTConnect");
+        }
+        else {
           // Default namespace
-          nsManager = new XmlNamespaceManager(navigator.NameTable);
-          nsManager.AddNamespace(prefix, defaultNs);
+          nsManager = new XmlNamespaceManager (navigator.NameTable);
+          nsManager.AddNamespace (prefix, defaultNs);
           log.InfoFormat ("Start: use default namespace {0} for MTConnect prefix {1}",
                           defaultNs, prefix);
         }
-      } else {
+      }
+      else {
         // From the Xmlns variable
-        nsManager = new XmlNamespaceManager(navigator.NameTable);
+        nsManager = new XmlNamespaceManager (navigator.NameTable);
         foreach (DictionaryEntry i in m_xmlns) {
-          nsManager.AddNamespace(i.Key.ToString(), i.Value.ToString());
+          nsManager.AddNamespace (i.Key.ToString (), i.Value.ToString ());
         }
       }
-      
+
       return nsManager;
     }
-    
+
     /// <summary>
     /// Get a valid value from a XPathNavigator, else raise an exception
     /// </summary>
@@ -241,8 +248,7 @@ namespace Lemoine.Cnc
     string GetValidValue (XPathNavigator node, string xpath = null, bool mayBeUnavailable = false)
     {
       if (null == node) {
-        log.Warn ("GetValidValue: " +
-                   "no node was found");
+        log.Warn ("GetValidValue: no node was found");
         throw new Exception ("No node");
       }
       if (log.IsDebugEnabled) {
@@ -257,10 +263,10 @@ namespace Lemoine.Cnc
         }
         throw new Exception ("Unavailable");
       }
-      
+
       return node.Value;
     }
-    
+
     /// <summary>
     /// Get a string value
     /// </summary>
@@ -272,11 +278,11 @@ namespace Lemoine.Cnc
         log.Error ($"GetString: Error while loading the XML");
         throw new Exception ("Error while loading XML");
       }
-      
+
       XPathNavigator node = (m_streamsNs == null) ?
-        m_streamsNavigator.SelectSingleNode(xpath) :
-        m_streamsNavigator.SelectSingleNode(xpath, m_streamsNs);
-      
+        m_streamsNavigator.SelectSingleNode (xpath) :
+        m_streamsNavigator.SelectSingleNode (xpath, m_streamsNs);
+
       return GetValidValue (node, xpath);
     }
 
@@ -364,28 +370,68 @@ namespace Lemoine.Cnc
     }
 
     /// <summary>
-    /// Get a position from string with three values
+    /// Get a position from string with three values, comma or space separated
     /// 
-    /// For example: 1.0 0.45 2.3
+    /// For example: 1.0 0.45 2.3 or 1.0,0.45,2.3
     /// </summary>
     /// <param name="param">XPath</param>
     /// <returns></returns>
     public Position GetPosition (string param)
     {
-      string[] values = this.GetString (param).Split (' ');
+      string[] values = this.GetString (param).Split (new char[] { ' ', ',' });
       if (values.Length != 3) {
-        log.ErrorFormat ("GetPosition: " +
-                         "number of values is {0} and not 3",
-                         values.Length);
+        log.Error ($"GetPosition: number of values is {values.Length} and not 3");
       }
       var position = new Position ();
       var usCultureInfo = new CultureInfo ("en-US"); // Point is the decimal separator
-      position.X = double.Parse (values [0], usCultureInfo);
-      position.Y = double.Parse (values [1], usCultureInfo);
-      position.Z = double.Parse (values [2], usCultureInfo);
+      position.X = double.Parse (values[0], usCultureInfo);
+      position.Y = double.Parse (values[1], usCultureInfo);
+      position.Z = double.Parse (values[2], usCultureInfo);
       return position;
     }
-    
+
+    /// <summary>
+    /// Get a position from string with three values, space separated
+    /// 
+    /// For example: 1.0 0.45 2.3
+    /// </summary>
+    /// <param name="param">XPath</param>
+    /// <returns></returns>
+    public Position GetPositionSpaceSep (string param)
+    {
+      string[] values = this.GetString (param).Split (' ');
+      if (values.Length != 3) {
+        log.Error ($"GetPosition: number of values is {values.Length} and not 3");
+      }
+      var position = new Position ();
+      var usCultureInfo = new CultureInfo ("en-US"); // Point is the decimal separator
+      position.X = double.Parse (values[0], usCultureInfo);
+      position.Y = double.Parse (values[1], usCultureInfo);
+      position.Z = double.Parse (values[2], usCultureInfo);
+      return position;
+    }
+
+    /// <summary>
+    /// Get a position from string with three values separated by a comma
+    /// 
+    /// For example: 1.0,0.45,2.3
+    /// </summary>
+    /// <param name="param">XPath</param>
+    /// <returns></returns>
+    public Position GetPositionCommaSep (string param)
+    {
+      string[] values = this.GetString (param).Split (',');
+      if (values.Length != 3) {
+        log.Error ($"GetPositionCommaSep: number of values is {values.Length} and not 3");
+      }
+      var position = new Position ();
+      var usCultureInfo = new CultureInfo ("en-US"); // Point is the decimal separator
+      position.X = double.Parse (values[0], usCultureInfo);
+      position.Y = double.Parse (values[1], usCultureInfo);
+      position.Z = double.Parse (values[2], usCultureInfo);
+      return position;
+    }
+
     /// <summary>
     /// Convert an ON/OFF string into a boolean value
     /// </summary>
@@ -401,13 +447,11 @@ namespace Lemoine.Cnc
         return false;
       }
       else {
-        log.ErrorFormat ("GetOnOff: " +
-                         "{0} is not a valid ON/OFF value",
-                         v);
+        log.Error ($"GetOnOff: {v} is not a valid ON/OFF value");
         throw new Exception ("Invalid ON/OFF value");
       }
     }
-    
+
     /// <summary>
     /// Get the program name.
     /// This is the same as GetString, except the block internal values
@@ -429,7 +473,7 @@ namespace Lemoine.Cnc
         this.m_blockValues.Clear ();
         this.m_programName = program;
       }
-      
+
       return program;
     }
 
@@ -452,8 +496,8 @@ namespace Lemoine.Cnc
 
       if (!string.IsNullOrEmpty (SharedProgramFolder)) {
         if (!string.IsNullOrEmpty (m_programName)) {
-          programFilePath = SharedProgramFolder + 
-                            SHARED_PATH_SEPARATOR + 
+          programFilePath = SharedProgramFolder +
+                            SHARED_PATH_SEPARATOR +
                             m_programName +
                             fileExtension;
         }
@@ -465,7 +509,7 @@ namespace Lemoine.Cnc
         log.ErrorFormat ("GetProgramOperationComment: SharedProgramFolder is not set");
       }
       log.DebugFormat ("GetProgramOperationComment: path: {0}", programFilePath);
-      comment = GetCommentFromFile(programFilePath);
+      comment = GetCommentFromFile (programFilePath);
       return comment;
     }
 
@@ -502,10 +546,10 @@ namespace Lemoine.Cnc
           log.DebugFormat ("GetCommentFromFile: no comment line found in: {0}", programFilePath);
         }
       }
-      catch(Exception e) {
-        log.ErrorFormat ("GetCommentFromFile: failed to read file: {0}, {1}", programFilePath, e);
+      catch (Exception ex) {
+        log.Error ($"GetCommentFromFile: failed to read file: {programFilePath}", ex);
       }
-      log.DebugFormat ("GetCommentFromFile: comment: {0}", comment);
+      log.Debug ($"GetCommentFromFile: comment: {comment}");
       return comment;
     }
 
