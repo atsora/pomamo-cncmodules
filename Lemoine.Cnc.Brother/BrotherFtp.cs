@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2024 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -6,8 +7,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
+using FluentFTP;
+using FluentFTP.Exceptions;
 using Lemoine.Cnc.Module.Brother;
 using Lemoine.Core.Log;
 
@@ -21,7 +25,10 @@ namespace Lemoine.Cnc
   {
     readonly IDictionary<string, FileParser> m_parsers = new Dictionary<string, FileParser> ();
     readonly ISet<string> m_fileInErrors = new HashSet<string> ();
-    TimeOutWebRequest m_webRequest = null;
+    FtpClient m_ftpClient = null;
+    string m_hostOrIp = null;
+    string m_login = null;
+    string m_password = null;
     bool m_dataRequested = false;
     DateTime m_datetimeWait = DateTime.UtcNow;
 
@@ -32,17 +39,51 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Host name or IP
     /// </summary>
-    public string HostOrIP { get; set; }
+    public string HostOrIP
+    {
+      get => m_hostOrIp;
+      set {
+        if (!string.Equals (m_hostOrIp, value)) {
+          if (null != m_ftpClient) {
+            m_ftpClient.Dispose ();
+            m_ftpClient = null;
+          }
+          m_hostOrIp = value;
+        }
+      }
+    }
 
     /// <summary>
     /// FTP login
     /// </summary>
-    public string Login { get; set; }
+    public string Login
+    {
+      get => m_login;
+      set {
+        if (!string.Equals (m_login, value)) {
+          if (null != m_login) {
+            m_ftpClient.Dispose ();
+            m_ftpClient = null;
+          }
+          m_login = value;
+        }
+      }
+    }
 
     /// <summary>
     /// FTP password
     /// </summary>
-    public string Password { get; set; }
+    public string Password
+    {
+      get => m_password;
+      set {
+        if (!string.Equals (m_password, value)) {
+          m_ftpClient.Dispose ();
+          m_ftpClient = null;
+        }
+        m_password = value;
+      }
+    }
 
     /// <summary>
     /// Time out
@@ -102,12 +143,11 @@ namespace Lemoine.Cnc
       m_parsers.Clear ();
       m_fileInErrors.Clear ();
 
-      // Initialize a webclient
-      if (m_webRequest is null) {
-        m_webRequest = new TimeOutWebRequest (TimeOutMs) {
-          Credentials = new NetworkCredential (Login, Password)
-        };
+      if (m_ftpClient is null) {
+        m_ftpClient = new FtpClient (m_hostOrIp, m_login, m_password);
+        m_ftpClient.Config.ReadTimeout = this.TimeOutMs;
       }
+      m_ftpClient.AutoConnect ();
 
       return true;
     }
@@ -117,7 +157,7 @@ namespace Lemoine.Cnc
     /// </summary>
     public void Finish ()
     {
-
+      m_ftpClient.Disconnect ();
     }
 
     FileParser GetFileParser (string fileName)
@@ -126,50 +166,67 @@ namespace Lemoine.Cnc
 
       if (m_parsers.TryGetValue (fileName, out FileParser fileParser)) {
         if (log.IsDebugEnabled) {
-          log.Debug ($"ReadFile: {fileName} already in cache");
+          log.Debug ($"GetFileParser: {fileName} already in cache");
         }
         return fileParser;
       }
 
-      if (m_webRequest is null) {
-        log.Error ($"ReadFile: FTP connection not initialized");
-        throw new Exception ("FTP connection not initialized");
+      if (m_ftpClient is null) {
+        log.Error ($"GetFileParser: ftp client is null");
+        throw new Exception ($"No ftp client");
+      }
+      if (!m_ftpClient.IsConnected) {
+        log.Error ($"GetFileParser: ftp client is not connected");
+        throw new Exception ($"FTP client not connected");
       }
 
       if (string.IsNullOrEmpty (fileName)) {
-        log.Error ($"ReadFile: invalid fileName");
+        log.Error ($"GetFileParser: invalid fileName");
         throw new ArgumentNullException ($"Invalid filename", "param");
       }
 
       if (m_fileInErrors.Contains (fileName)) {
-        log.Error ($"ReadFile: file {fileName} was already in error");
+        log.Error ($"GetFileParser: file {fileName} was already in error");
         throw new Exception ($"File previously in error");
       }
 
       if (DateTime.UtcNow < m_datetimeWait) {
-        log.Info ($"ReadFile: wait {m_datetimeWait}");
+        log.Info ($"GetFileParser: wait {m_datetimeWait}");
         throw new Exception ("Wait");
       }
 
       try {
-        string url = "ftp://" + HostOrIP + "/" + fileName;
-        log.Info ($"ReadFile: read {url}");
-        byte[] newFileData = m_webRequest.DownloadData (url);
-        string fileContent = System.Text.Encoding.UTF8.GetString (newFileData);
+        log.Info ($"GetFileParser: read ftp://{HostOrIP}/{fileName}");
+        string fileContent;
+        using (var stream = m_ftpClient.OpenRead (fileName)) {
+          using (var reader = new StreamReader (stream)) {
+            fileContent = reader.ReadToEnd ();
+          }
+        }
         fileParser = new FileParser (log, fileName, fileContent);
         m_parsers[fileName] = fileParser;
-        log.Info ($"ReadFile: {fileName} successfully read");
+        log.Info ($"GetFileParser: {fileName} successfully read");
         return fileParser;
       }
-      catch (WebException ex) {
+      catch (System.TimeoutException ex) {
         m_fileInErrors.Add (fileName);
-        log.Error ($"ReadFile: Exception status {ex.Status} when trying to read {fileName} of machine {HostOrIP}", ex);
-
-        if (ex.Status == WebExceptionStatus.Timeout || ex.Status == WebExceptionStatus.ConnectFailure) {
-          // Wait 1 minute
-          m_datetimeWait = DateTime.UtcNow.AddMinutes (1);
-          log.Warn ($"ReadFile: no acquisition until {m_datetimeWait}");
-        }
+        log.Error ($"GetFileParser: TimeoutException status when trying to read {fileName} of machine {HostOrIP}", ex);
+        // Wait 1 minute
+        m_datetimeWait = DateTime.UtcNow.AddMinutes (1);
+        log.Warn ($"GetFileParser: no acquisition until {m_datetimeWait}");
+        throw;
+      }
+      catch (FtpMissingSocketException ex) {
+        m_fileInErrors.Add (fileName);
+        log.Error ($"GetFileParser: FtpMissingSocketException status when trying to read {fileName} of machine {HostOrIP}", ex);
+        // Wait 1 minute
+        m_datetimeWait = DateTime.UtcNow.AddMinutes (1);
+        log.Warn ($"GetFileParser: no acquisition until {m_datetimeWait}");
+        throw;
+      }
+      catch (FtpException ex) {
+        m_fileInErrors.Add (fileName);
+        log.Error ($"GetFileParser: FtpException when trying to read {fileName} of machine {HostOrIP}", ex);
         throw;
       }
     }
@@ -221,30 +278,30 @@ namespace Lemoine.Cnc
       try {
         var parts = param.Split ('|');
         if (parts.Length != 3) {
-          log.Error ($"GetFTPString: invalid param {param}: no 3 elements");
+          log.Error ($"GetString: invalid param {param}: no 3 elements");
           throw new ArgumentException ("No 3 elements", "param");
         }
 
         if (string.IsNullOrEmpty (parts[0])) {
-          log.Error ($"GetFTPString: first element Filename is empty in {param}");
+          log.Error ($"GetString: first element Filename is empty in {param}");
           throw new Exception ("Filename cannot be empty");
         }
 
         if (string.IsNullOrEmpty (parts[1])) {
-          log.Error ($"GetFTPString: second element Symbol is empty in {param}");
+          log.Error ($"GetString: second element Symbol is empty in {param}");
           throw new Exception ("Symbol cannot be empty");
         }
 
         int position = -1;
         if (!int.TryParse (parts[2], out position)) {
-          log.Error ($"GetFTPString: 3rd element is not a number in {param}");
+          log.Error ($"GetString: 3rd element is not a number in {param}");
           throw new Exception (parts[2] + "' is not a number");
         }
 
         return GetString (parts[0], parts[1], position);
       }
       catch (Exception ex) {
-        log.Error ($"GetFtpString: param={param} exception", ex);
+        log.Error ($"GetString: param={param} exception", ex);
         throw;
       }
     }
@@ -260,7 +317,7 @@ namespace Lemoine.Cnc
         return int.Parse (GetString (param));
       }
       catch (Exception ex) {
-        log.Error ($"GetFTPInt: param={param} exception", ex);
+        log.Error ($"GetInt: param={param} exception", ex);
         throw;
       }
     }
@@ -276,7 +333,7 @@ namespace Lemoine.Cnc
         return double.Parse (GetString (param));
       }
       catch (Exception ex) {
-        log.Error ($"GetFTPDouble: param={param} exception", ex);
+        log.Error ($"GetDouble: param={param} exception", ex);
         throw;
       }
     }
@@ -297,12 +354,12 @@ namespace Lemoine.Cnc
           return true;
         }
         else {
-          log.Error ($"GetFTPBool: unexpected value {tmp}");
+          log.Error ($"GetBool: unexpected value {tmp}");
           throw new Exception ("Cannot convert '" + tmp + "' into a boolean");
         }
       }
       catch (Exception ex) {
-        log.Error ($"GetFTPBool: param={param} exception", ex);
+        log.Error ($"GetBool: param={param} exception", ex);
         throw;
       }
     }
@@ -323,7 +380,7 @@ namespace Lemoine.Cnc
         return GetStringList (parts[0], parts[1]);
       }
       catch (Exception ex) {
-        log.Error ($"GetFTPStringList: param={param} exception", ex);
+        log.Error ($"GetStringList: param={param} exception", ex);
         throw;
       }
     }
@@ -348,7 +405,7 @@ namespace Lemoine.Cnc
         return result;
       }
       catch (Exception ex) {
-        log.Error ($"GetFTPIntList: param={param} exception", ex);
+        log.Error ($"GetIntList: param={param} exception", ex);
         throw;
       }
     }
@@ -381,7 +438,7 @@ namespace Lemoine.Cnc
           return result;
         }
         catch (Exception ex) {
-          log.Error ($"GetFTPMaintenanceNotice.get: exception", ex);
+          log.Error ($"MaintenanceNotice.get: exception", ex);
           throw;
         }
       }
@@ -398,43 +455,43 @@ namespace Lemoine.Cnc
           IList<CncAlarm> result = new List<CncAlarm> ();
 
           switch (MachineType) {
-          case "B":
-            // B00 machines
-            var alarmNumbers = GetStringList ("MEM.NC|E01");
-            foreach (var alarmNumber in alarmNumbers) {
-              var alarm = m_cncAlarmBuilder.CreateAlarmB (alarmNumber);
-              if (alarm != null) {
-                result.Add (alarm);
+            case "B":
+              // B00 machines
+              var alarmNumbers = GetStringList ("MEM.NC|E01");
+              foreach (var alarmNumber in alarmNumbers) {
+                var alarm = m_cncAlarmBuilder.CreateAlarmB (alarmNumber);
+                if (alarm != null) {
+                  result.Add (alarm);
+                }
               }
-            }
-            break;
-          case "C":
-            // C00 machines
-            var fileContent = GetSymbolListContent ("ALARM.NC");
-            foreach (var symbol in fileContent.Keys) {
-              var parts = fileContent[symbol];
-              foreach (var part in parts) {
-                try {
-                  var alarm = m_cncAlarmBuilder.CreateAlarm (part);
-                  if (alarm != null) {
-                    result.Add (alarm);
+              break;
+            case "C":
+              // C00 machines
+              var fileContent = GetSymbolListContent ("ALARM.NC");
+              foreach (var symbol in fileContent.Keys) {
+                var parts = fileContent[symbol];
+                foreach (var part in parts) {
+                  try {
+                    var alarm = m_cncAlarmBuilder.CreateAlarm (part);
+                    if (alarm != null) {
+                      result.Add (alarm);
+                    }
+                  }
+                  catch (Exception ex) {
+                    log.Error ($"Alarms: skip alarm {part} because of exception", ex);
                   }
                 }
-                catch (Exception ex) {
-                  log.Error ($"GetFTPAlarms: skip alarm {part} because of exception", ex);
-                }
               }
-            }
-            break;
-          default:
-            log.Error ($"GetFTPAlarms: machine type {this.MachineType} is not supported");
-            throw new Exception ("Not supported machine type");
+              break;
+            default:
+              log.Error ($"Alarms: machine type {this.MachineType} is not supported");
+              throw new Exception ("Not supported machine type");
           }
 
           return result;
         }
         catch (Exception ex) {
-          log.Error ($"GetFTPAlarms.get: exception", ex);
+          log.Error ($"Alarms.get: exception", ex);
           throw;
         }
       }
@@ -485,7 +542,7 @@ namespace Lemoine.Cnc
               log.WarnFormat ("Macro {0} is empty", macroName);
             }
             else if (!double.TryParse (parts[0], out value)) {
-              log.WarnFormat ("Value {0} of macro {1} cannot be parsed as a double", parts[0], macroName);
+              log.WarnFormat ("GetFTPMacroSet: Value {0} of macro {1} cannot be parsed as a double", parts[0], macroName);
             }
             else {
               result[macroName] = value;
@@ -522,7 +579,7 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.Error ($"GetFTPToolLifeData: param={param} exception", ex);
+        log.Error ($"GetToolLifeData: param={param} exception", ex);
         throw;
       }
 

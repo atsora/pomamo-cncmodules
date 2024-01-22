@@ -8,8 +8,10 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Lemoine.Core.Log;
 
 namespace Lemoine.Cnc
@@ -22,7 +24,11 @@ namespace Lemoine.Cnc
   {
     readonly IDictionary<string, string> m_pages = new Dictionary<string, string> ();
     readonly ISet<string> m_pathInErrors = new HashSet<string> ();
+#if NETCOREAPP
+    readonly HttpClient m_httpClient = new HttpClient ();
+#else // !NETCOREAPP
     TimeOutWebRequest m_request = null;
+#endif // !NETCOREAPP
     bool m_dataRequested = false;
     DateTime m_datetimeWait = DateTime.UtcNow;
 
@@ -92,10 +98,14 @@ namespace Lemoine.Cnc
       m_pages.Clear ();
       m_pathInErrors.Clear ();
 
+#if NETCOREAPP
+      m_httpClient.Timeout = TimeSpan.FromMilliseconds (TimeOutMs);
+#else // !NETCOREAPP
       // Initialize a webclient
       if (m_request == null) {
         m_request = new TimeOutWebRequest (TimeOutMs);
       }
+#endif // !NETCOREAPP
 
       return true;
     }
@@ -173,7 +183,17 @@ namespace Lemoine.Cnc
         string url = "http://" + HostOrIP + "/" + path;
         log.Info ($"ReadPage: Reading {url}");
 
+#if NETCOREAPP
+        var testRequest = new HttpRequestMessage () {
+          RequestUri = new Uri (url),
+          Method = HttpMethod.Get,
+        };
+        using (var testResponse = m_httpClient.Send (testRequest)) {
+          page = testResponse.Content.ReadAsStringAsync ().Result;
+        }
+#else // !NETCOREAPP
         page = m_request.DownloadString (url);
+#endif // !NETCOREAPP
         m_pages[path] = page;
         log.Info ($"ReadPage: {url} successfully read");
         return page;

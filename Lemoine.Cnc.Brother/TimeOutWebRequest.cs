@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#if NET48
+
 using System;
 using System.Net;
 
@@ -40,3 +42,5 @@ namespace Lemoine.Cnc
     }
   }
 }
+
+#endif // NET48
