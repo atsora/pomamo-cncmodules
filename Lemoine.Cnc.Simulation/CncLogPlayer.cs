@@ -57,7 +57,7 @@ namespace Lemoine.Cnc
     }
 
     /// <summary>
-    /// Path to the log files (separator = semicolon)
+    /// Path to the log files (separator = semicolon ;)
     /// </summary>
     public string LogFilePath
     {
@@ -65,6 +65,13 @@ namespace Lemoine.Cnc
       set {
         m_logFilePath = value;
         LogFilePathArray = m_logFilePath.Split (new char[] { ';' });
+        if (log.IsWarnEnabled) {
+          foreach (var p in LogFilePathArray) {
+            if (!File.Exists (p)) {
+              log.Warn ($"LogFilePath.set: file {p} does not exist");
+            }
+          }
+        }
       }
     }
 
@@ -319,39 +326,39 @@ namespace Lemoine.Cnc
         }
 
         switch (letter) {
-        case "A":
-          position.A = coord.Value;
-          break;
-        case "B":
-          position.B = coord.Value;
-          break;
-        case "C":
-          position.C = coord.Value;
-          break;
-        case "U":
-          position.U = coord.Value;
-          break;
-        case "V":
-          position.V = coord.Value;
-          break;
-        case "W":
-          position.W = coord.Value;
-          break;
-        case "X":
-          position.X = coord.Value;
-          xOk = true;
-          break;
-        case "Y":
-          position.Y = coord.Value;
-          yOk = true;
-          break;
-        case "Z":
-          position.Z = coord.Value;
-          zOk = true;
-          break;
-        default:
-          log.WarnFormat ("GetPosition: unknown coordinate '{0}'", split[0]);
-          break;
+          case "A":
+            position.A = coord.Value;
+            break;
+          case "B":
+            position.B = coord.Value;
+            break;
+          case "C":
+            position.C = coord.Value;
+            break;
+          case "U":
+            position.U = coord.Value;
+            break;
+          case "V":
+            position.V = coord.Value;
+            break;
+          case "W":
+            position.W = coord.Value;
+            break;
+          case "X":
+            position.X = coord.Value;
+            xOk = true;
+            break;
+          case "Y":
+            position.Y = coord.Value;
+            yOk = true;
+            break;
+          case "Z":
+            position.Z = coord.Value;
+            zOk = true;
+            break;
+          default:
+            log.WarnFormat ("GetPosition: unknown coordinate '{0}'", split[0]);
+            break;
         }
       }
 

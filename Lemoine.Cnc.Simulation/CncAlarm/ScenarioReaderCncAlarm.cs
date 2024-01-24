@@ -80,7 +80,7 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.Error ("ScenarioReaderCncAlarm: ProcessCommand in CncAlarm failed with {0}", ex);
+        log.Error ("ScenarioReaderCncAlarm: ProcessCommand in CncAlarm failed", ex);
         return false;
       }
     }

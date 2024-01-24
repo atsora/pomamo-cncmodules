@@ -155,8 +155,8 @@ namespace Lemoine.Cnc
         m_currentToolLifeData[index][0].LifeType = ToolUnit.TimeSeconds;
         m_currentToolLifeData[index][0].LifeValue = ParseSeconds (lifeValuesStr[1]);
       }
-      catch (Exception) {
-        log.ErrorFormat ("FillToolDataSimple: invalid part '{0}'", strToolData);
+      catch (Exception ex) {
+        log.Error ($"FillToolDataComplex: invalid part {strToolData}", ex);
         return false;
       }
 

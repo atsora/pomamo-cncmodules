@@ -52,7 +52,7 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Path of the scenario to read
     /// 
-    /// If relative, consider it is relative from CommonConfigDirectory
+    /// If relative, consider it is relative to CommonConfigDirectory
     /// </summary>
     public string ScenarioPath { get; set; }
 
@@ -153,6 +153,12 @@ namespace Lemoine.Cnc
           var path = this.ScenarioPath;
           if (!Path.IsPathRooted (path)) {
             path = Path.Combine (Lemoine.Info.PulseInfo.CommonConfigurationDirectory, path);
+            if (log.IsDebugEnabled) {
+              log.Debug ($"ReadingProgram: consider file {this.ScenarioPath} relative to CommonConfigurationDirectory");
+            }
+          }
+          if (!File.Exists (path)) {
+            log.Error ($"ReadingProgram: file {path} does not exist");
           }
           using (TextReader reader = new StreamReader (ScenarioPath)) {
             while (!m_stop && (line = reader.ReadLine ()) != null) {
@@ -169,7 +175,7 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.Error ("ReadingProgram: exception", ex);
+        log.Error ($"ReadingProgram: exception for scenarionPath={this.ScenarioPath}", ex);
         Error = true;
       }
 
