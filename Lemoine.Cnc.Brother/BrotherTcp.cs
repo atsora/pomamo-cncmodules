@@ -25,6 +25,8 @@ namespace Lemoine.Cnc
     readonly IDictionary<string, IList<string>> m_responseByQuery = new Dictionary<string, IList<string>> ();
     bool m_dataRequested = false;
     bool m_couldReadOne = true;
+    IList<string> m_programHeaderCache = null;
+    string m_programHeaderProgramName = null;
 
     readonly CncAlarmBuilder m_cncAlarmBuilder = new CncAlarmBuilder ();
     readonly ToolLifeBuilder m_toolLifeBuilder = new ToolLifeBuilder ();
@@ -421,19 +423,18 @@ namespace Lemoine.Cnc
     }
 
     /// <summary>
-    /// Read the first string containing the specified prefix with the TCP protocol type 2
+    /// Read the first string containing the specified string with the TCP protocol type 2
     /// </summary>
     /// <param name="command"></param>
     /// <param name="function"></param>
     /// <param name="message"></param>
-    /// <param name="commentPrefix">usually (POMAMO</param>
+    /// <param name="filter"></param>
     /// <returns></returns>
-    public string GetPulseCommentString (string command, string function, string message, string commentPrefix)
+    string GetFiltered (string command, string function, string message, string filter)
     {
       var lines = GetLines (command, function, message, "");
-      return lines.First (x => x.Contains (commentPrefix));
+      return lines.First (x => x.Contains (filter));
     }
-
 
     /// <summary>
     /// Read content like the method ManagerFTP.GetSymbolListContent
@@ -518,11 +519,11 @@ namespace Lemoine.Cnc
           var paramPart2 = param.Substring (lastIndex + 1).Split ('-');
 
           if (paramPart2.Length != 2) {
-            log.Error ($"GetTCPString: invalid length in {param.Substring (lastIndex + 1)}");
+            log.Error ($"GetString: invalid length in {param.Substring (lastIndex + 1)}");
           }
           else {
             if (!int.TryParse (paramPart2[0], out substringPosition) || !int.TryParse (paramPart2[1], out substringLength)) {
-              log.Error ($"GetTCPString: one of the substring instruction is not an integer in {param}");
+              log.Error ($"GetString: one of the substring instruction is not an integer in {param}");
               throw new ArgumentException ("Invalid substring instruction", "param");
             }
           }
@@ -531,7 +532,7 @@ namespace Lemoine.Cnc
 
         var parts = param.Split ('|');
         if (parts.Length < 3 || parts.Length > 4 || parts[0].Length > 3 || parts[1].Length > 4 || parts[2].Length > 8) {
-          log.Error ($"GetTCPString: invalid length in {param}");
+          log.Error ($"GetString: invalid length in {param}");
           throw new ArgumentException ("Invalid length in one element", "param");
         }
 
@@ -540,7 +541,7 @@ namespace Lemoine.Cnc
         // Substring?
         if (substringLength != 0) {
           if (substringLength + substringPosition > result.Length) {
-            log.Error ($"GetTCPString: Couldn't extract a substring in {result} because position is {substringPosition} and length is {substringLength}");
+            log.Error ($"GetString: Couldn't extract a substring in {result} because position is {substringPosition} and length is {substringLength}");
             throw new Exception ($"Invalid substring extraction");
           }
           else {
@@ -551,7 +552,7 @@ namespace Lemoine.Cnc
         return result;
       }
       catch (Exception ex) {
-        log.Error ($"GetTCPString: param={param}, exception", ex);
+        log.Error ($"GetString: param={param}, exception", ex);
         throw;
       }
     }
@@ -567,7 +568,7 @@ namespace Lemoine.Cnc
         return int.Parse (GetString (param));
       }
       catch (Exception ex) {
-        log.Error ($"GetTCPInt: param={param}, exception", ex);
+        log.Error ($"GetInt: param={param}, exception", ex);
         throw;
       }
     }
@@ -583,7 +584,7 @@ namespace Lemoine.Cnc
         return double.Parse (GetString (param));
       }
       catch (Exception ex) {
-        log.Error ($"GetTCPDouble: param={param}, exception", ex);
+        log.Error ($"GetDouble: param={param}, exception", ex);
         throw;
       }
     }
@@ -604,12 +605,12 @@ namespace Lemoine.Cnc
           return true;
         }
         else {
-          log.Error ($"GetTCPBool: invalid boolean value {tmp}");
+          log.Error ($"GetBool: invalid boolean value {tmp}");
           throw new InvalidCastException ("Invalid boolean value");
         }
       }
       catch (Exception ex) {
-        log.Error ($"GetTCPBool: param={param}, exception", ex);
+        log.Error ($"GetBool: param={param}, exception", ex);
         throw;
       }
     }
@@ -629,35 +630,76 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Read PrograName from a file with the TCP protocol type 2 ans store it for part and operation detection
     /// </summary>
-    /// <param name="param">cf GetTCPStringFromFile</param>
+    /// <param name="param">cf GetTCPStringFromFile. If not set, MEM|A01|0 is used</param>
     /// <returns></returns>
     public string GetProgramNameFromFile (string param)
     {
-      var result = GetStringFromFile (param);
-      ProgramName = result;
+      var result = GetStringFromFile (string.IsNullOrEmpty (param) ? "MEM|A01|0" : param);
+      this.ProgramName = result;
       return result;
     }
 
     /// <summary>
-    ///Read the line in program file starting with prefix "(POMAMO PART=" with the TCP protocol type 2
-    ///Note: must be called after getting ProgramName
-    /// </summary> 
-    /// <param name="param">cf GetTCPString</param>
-    /// <returns> (POMAMO PART=pppp OPERATION=oooo/xxxx)</returns>
-    public string GetProgramOperationComment (string param)
+    /// Get the program content after:
+    /// <item>setting ProgramName</item>
+    /// <item>or calling GetProgramName or GetProgramNameFromFile</item>
+    /// </summary>
+    /// <param name="param"></param>
+    /// <returns></returns>
+    public IList<string> GetProgramContentLines (string _)
     {
-      const string commentPrefix = "(POMAMO PART=";
       try {
-        if (!string.IsNullOrEmpty (ProgramName)) {
-          return GetPulseCommentString ("LOD", "", "O" + ProgramName, commentPrefix);
+        if (string.IsNullOrEmpty (this.ProgramName)) {
+          log.Error ($"GetProgramCommentLines: ProgramName is unknown");
+          throw new Exception ($"Unknown program name");
         }
         else {
-          return "";
+          return GetLines ("LOD", "", $"O{this.ProgramName}", "");
         }
       }
       catch (Exception ex) {
-        log.Error ($"GetTCPProgramOperationComment: param={param}, exception", ex);
+        log.Error ($"GetProgramCommentLines: exception", ex);
         throw;
+      }
+    }
+
+    /// <summary>
+    /// Get the program content after:
+    /// <item>setting ProgramName</item>
+    /// <item>or calling GetProgramName or GetProgramNameFromFile</item>
+    /// </summary>
+    /// <param name="param"></param>
+    /// <returns></returns>
+    public string GetProgramContent (string param) => string.Join ("\n", GetProgramContentLines (param));
+
+    /// <summary>
+    /// Get the program header (this is cached while the program name remains the same)
+    /// </summary>
+    /// <param name="param">number of lines to get. If empty, consider 10 lines</param>
+    /// <returns></returns>
+    public IList<string> GetProgramHeader (string param)
+    {
+      if ((null != m_programHeaderProgramName) && (null != m_programHeaderCache)
+        && !string.IsNullOrEmpty (this.ProgramName)
+        && string.Equals (m_programHeaderProgramName, this.ProgramName, StringComparison.InvariantCultureIgnoreCase)) {
+        if (log.IsDebugEnabled) {
+          log.Debug ($"GetProgramHeader: get the header in cache for program name={this.ProgramName}");
+        }
+        return m_programHeaderCache;
+      }
+      else {
+        int lines;
+        if (string.IsNullOrEmpty (param)) {
+          log.Debug ($"GetProgramHeader: param is empty, consider 10 lines");
+          lines = 10;
+        }
+        else {
+          lines = int.Parse (param);
+        }
+        m_programHeaderProgramName = null;
+        m_programHeaderCache = GetProgramContentLines ("").Take (lines).ToList ();
+        m_programHeaderProgramName = this.ProgramName;
+        return m_programHeaderCache;
       }
     }
 
@@ -880,42 +922,42 @@ namespace Lemoine.Cnc
 
         try {
           switch (this.MachineType) {
-          case "B":
-            // B00 machines
-            var alarmNumbers = GetStringListFromFile ("MEM|E01");
-            foreach (var alarmNumber in alarmNumbers) {
-              try {
-                var alarm = m_cncAlarmBuilder.CreateAlarmB (alarmNumber);
-                if (alarm != null) {
-                  result.Add (alarm);
-                }
-              }
-              catch (Exception ex) {
-                log.Error ($"GetTCPAlarms.get: exception creating alarm B {alarmNumber} => skip it", ex);
-              }
-            }
-            break;
-          case "C":
-            // C00 machines
-            var fileContent = GetSymbolListContent ("LOD||ALARM");
-            foreach (var symbol in fileContent.Keys) {
-              var parts = fileContent[symbol];
-              foreach (var part in parts) {
+            case "B":
+              // B00 machines
+              var alarmNumbers = GetStringListFromFile ("MEM|E01");
+              foreach (var alarmNumber in alarmNumbers) {
                 try {
-                  var alarm = m_cncAlarmBuilder.CreateAlarm (part);
+                  var alarm = m_cncAlarmBuilder.CreateAlarmB (alarmNumber);
                   if (alarm != null) {
                     result.Add (alarm);
                   }
                 }
                 catch (Exception ex) {
-                  log.Error ($"GetTCPAlarms.get: skip alarm {part} because of exception", ex);
+                  log.Error ($"GetTCPAlarms.get: exception creating alarm B {alarmNumber} => skip it", ex);
                 }
               }
-            }
-            break;
-          default:
-            log.Error ($"GetTCPAlarms.get: invalid machine type {MachineType}");
-            throw new Exception ("Invalid machine type");
+              break;
+            case "C":
+              // C00 machines
+              var fileContent = GetSymbolListContent ("LOD||ALARM");
+              foreach (var symbol in fileContent.Keys) {
+                var parts = fileContent[symbol];
+                foreach (var part in parts) {
+                  try {
+                    var alarm = m_cncAlarmBuilder.CreateAlarm (part);
+                    if (alarm != null) {
+                      result.Add (alarm);
+                    }
+                  }
+                  catch (Exception ex) {
+                    log.Error ($"GetTCPAlarms.get: skip alarm {part} because of exception", ex);
+                  }
+                }
+              }
+              break;
+            default:
+              log.Error ($"GetTCPAlarms.get: invalid machine type {MachineType}");
+              throw new Exception ("Invalid machine type");
           }
         }
         catch (Exception ex) {
@@ -1081,22 +1123,22 @@ namespace Lemoine.Cnc
       char unit;
       string variableName;
       switch (param[0]) {
-      case 'M':
-        unit = 'M';
-        variableName = param.Substring (1);
-        break;
-      case 'I':
-        unit = 'I';
-        variableName = param.Substring (1);
-        break;
-      case 'D':
-        unit = 'D';
-        variableName = param.Substring (1);
-        break;
-      default:
-        unit = 'D';
-        variableName = param;
-        break;
+        case 'M':
+          unit = 'M';
+          variableName = param.Substring (1);
+          break;
+        case 'I':
+          unit = 'I';
+          variableName = param.Substring (1);
+          break;
+        case 'D':
+          unit = 'D';
+          variableName = param.Substring (1);
+          break;
+        default:
+          unit = 'D';
+          variableName = param;
+          break;
       }
       SetMacroVariable (variableName, data, unit);
     }
