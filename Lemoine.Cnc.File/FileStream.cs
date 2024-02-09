@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using Lemoine.Collections;
 using Lemoine.Core.Log;
 
@@ -15,7 +16,7 @@ namespace Lemoine.Cnc
   /// <summary>
   /// Description of FileStream.
   /// </summary>
-  public class FileStream: Lemoine.Cnc.BaseCncModule, Lemoine.Cnc.ICncModule, IDisposable
+  public class FileStream : Lemoine.Cnc.BaseCncModule, Lemoine.Cnc.ICncModule, IDisposable
   {
     /// <summary>
     /// Default possible separators between the key and the value
@@ -39,7 +40,7 @@ namespace Lemoine.Cnc
     int m_deleteEvery = DEFAULT_DELETE_EVERY;
     int m_maxFileSize = DEFAULT_MAX_FILE_SIZE;
     bool m_rename = true;
-    
+
     int m_checkpoint = -1;
     int m_lineNumber = 0;
     string m_firstLine = null;
@@ -54,7 +55,8 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Path of the file to read
     /// </summary>
-    public string FilePath {
+    public string FilePath
+    {
       get { return m_filePath; }
       set { m_filePath = value; }
     }
@@ -62,44 +64,49 @@ namespace Lemoine.Cnc
     /// <summary>
     /// String with the possible separator characters between the key and the value
     /// </summary>
-    public string Separators {
+    public string Separators
+    {
       get { return m_separators; }
       set { m_separators = value; }
     }
-    
+
     /// <summary>
     /// When a single element is requested, if true, return the first element in the queue, else only the last one
     /// and discard the others
     /// 
     /// Default is False
     /// </summary>
-    public bool First {
+    public bool First
+    {
       get { return m_first; }
       set { m_first = value; }
     }
-    
+
     /// <summary>
     /// Delete the file every the specified number of lines
     /// 
     /// Default is 200
     /// </summary>
-    public int DeleteEvery {
+    public int DeleteEvery
+    {
       get { return m_deleteEvery; }
       set { m_deleteEvery = value; }
     }
-    
+
     /// <summary>
     /// Rename the file before deleting it
     /// </summary>
-    public bool Rename {
+    public bool Rename
+    {
       get { return m_rename; }
       set { m_rename = value; }
     }
-    
+
     /// <summary>
     /// Has the file been parsed successfully ?
     /// </summary>
-    public bool FileError {
+    public bool FileError
+    {
       get { return m_fileError; }
     }
     #endregion // Getters / Setters
@@ -109,10 +116,10 @@ namespace Lemoine.Cnc
     /// Description of the constructor
     /// </summary>
     public FileStream ()
-      : base("Lemoine.Cnc.In.FileStream")
+      : base ("Lemoine.Cnc.In.FileStream")
     {
     }
-    
+
     /// <summary>
     /// <see cref="IDisposable.Dispose" />
     /// </summary>
@@ -124,10 +131,10 @@ namespace Lemoine.Cnc
         StoreCheckpoint ();
         StoreData ();
       }
-      
+
       GC.SuppressFinalize (this);
     }
-    
+
     #endregion // Constructors / Destructor / ToString methods
 
     #region Methods
@@ -139,7 +146,7 @@ namespace Lemoine.Cnc
       Initialize ();
       Read ();
     }
-    
+
     /// <summary>
     /// Make some initialization
     /// </summary>
@@ -152,7 +159,7 @@ namespace Lemoine.Cnc
         InitializeData ();
       }
     }
-    
+
     /// <summary>
     /// Read the file
     /// </summary>
@@ -188,15 +195,14 @@ namespace Lemoine.Cnc
             }
           }
         }
-        
+
         // Read the data
-        using (System.IO.StreamReader streamReader = new System.IO.StreamReader (m_stream))
-        {
+        using (System.IO.StreamReader streamReader = new System.IO.StreamReader (m_stream)) {
           while (false == streamReader.EndOfStream) {
             string line = streamReader.ReadLine ();
             ++m_lineNumber;
             if (m_lineNumber <= m_checkpoint) {
-              if ( (1 == m_lineNumber)
+              if ((1 == m_lineNumber)
                   && (null != m_firstLine)
                   && !object.Equals (m_firstLine, line)) {
                 log.ErrorFormat ("Read: " +
@@ -232,14 +238,14 @@ namespace Lemoine.Cnc
         if (null != previousFilePath) {
           m_filePath = previousFilePath;
         }
-        if (ex.GetType().Name != "System.IO.FileNotFoundException") {
+        if (ex.GetType ().Name != "System.IO.FileNotFoundException") {
           throw ex;
         }
       }
-      
+
       // TODO: keep a lock on the file between the read time and the delete time ?
       // What is the best way to do it ? Rename the file instead of deleting it ?
-      
+
       // Delete the file if enough lines have already been run
       if (m_deleteEvery < m_lineNumber) {
         log.InfoFormat ("Read: " +
@@ -254,7 +260,7 @@ namespace Lemoine.Cnc
 
     void ParseLine (string line)
     {
-      string [] values = line.Split (this.m_separators.ToCharArray (),
+      string[] values = line.Split (this.m_separators.ToCharArray (),
                                      2,
                                      StringSplitOptions.RemoveEmptyEntries);
       if (values.Length < 1) {
@@ -264,16 +270,16 @@ namespace Lemoine.Cnc
       }
       else if (values.Length < 2) {
         log.Warn ($"Read: no key/value pair in line {line}, got only {values[0]}");
-        PushData ("", values [0].Trim ());
+        PushData ("", values[0].Trim ());
       }
       else {
         if (log.IsDebugEnabled) {
           log.Debug ($"Read: in line {line} got key/value {values[0]}={values[1]}");
         }
-        PushData (values [0].Trim (), values [1].Trim ());
+        PushData (values[0].Trim (), values[1].Trim ());
       }
     }
-    
+
     /// <summary>
     /// Finish: store the checkpoint
     /// </summary>
@@ -282,7 +288,7 @@ namespace Lemoine.Cnc
       StoreCheckpoint ();
       StoreData ();
     }
-    
+
     string GetFilePath (string prefix)
     {
       string path = string.Format ("{0}-{1}",
@@ -296,7 +302,7 @@ namespace Lemoine.Cnc
       }
       return Path.Combine (directory, path);
     }
-    
+
     string GetCheckpointFilePath ()
     {
       return GetFilePath ("FileStreamCheckpoint");
@@ -333,7 +339,7 @@ namespace Lemoine.Cnc
         log.Error ($"StoreCheckpoint: saving the checkpoint {m_checkpoint} into {checkpointPath} failed with {ex}");
       }
     }
-    
+
     void InitializeCheckpoint ()
     {
       string checkpointPath = GetCheckpointFilePath ();
@@ -353,12 +359,12 @@ namespace Lemoine.Cnc
         log.Error ($"InitializeCheckpoint: reading and parsing file {checkpointPath} failed with {ex}");
       }
     }
-    
+
     string GetDataFilePath ()
     {
       return GetFilePath ("FileStreamData");
     }
-    
+
     void StoreData ()
     {
       string path = GetDataFilePath ();
@@ -377,7 +383,7 @@ namespace Lemoine.Cnc
         log.Error ($"StoreQueue: saving the queue into {path} failed with {ex}");
       }
     }
-    
+
     void InitializeData ()
     {
       string path = GetDataFilePath ();
@@ -389,7 +395,7 @@ namespace Lemoine.Cnc
             if (line.StartsWith ("*")) {
               string key = line.Substring (1);
               queue = new StandardQueue<string> ();
-              m_data [key] = queue;
+              m_data[key] = queue;
             }
             else {
               Debug.Assert (null != queue);
@@ -407,7 +413,7 @@ namespace Lemoine.Cnc
         log.Error ($"InitializeData: reading and parsing file {path} failed with {ex}");
       }
     }
-    
+
     void CloseAndDelete ()
     {
       try {
@@ -431,7 +437,7 @@ namespace Lemoine.Cnc
           if (log.IsDebugEnabled) {
             log.Debug ($"CloseAndDelete: deleting file {deletePath}");
           }
-		  System.IO.File.Delete (deletePath);
+          System.IO.File.Delete (deletePath);
         }
         else {
           if (log.IsDebugEnabled) {
@@ -501,7 +507,7 @@ namespace Lemoine.Cnc
         log.Error ($"ReadOnlyLines: error occurred when reading {path}, {ex}");
       }
     }
-    
+
     void CloseStream ()
     {
       if (null != m_stream) {
@@ -517,14 +523,14 @@ namespace Lemoine.Cnc
       StandardQueue<string> queue;
       if (!m_data.TryGetValue (key, out queue)) {
         queue = new Lemoine.Collections.StandardQueue<string> ();
-        m_data [key] = queue;
+        m_data[key] = queue;
       }
       Debug.Assert (null != queue);
-      
+
       // Push the data into the queue
       queue.Enqueue (v);
     }
-    
+
     /// <summary>
     /// Get the queue of the retrieved values for the specified key
     /// </summary>
@@ -532,7 +538,7 @@ namespace Lemoine.Cnc
     /// <returns></returns>
     public IQueue<string> GetQueue (string param)
     {
-      return m_data [param];
+      return m_data[param];
     }
 
     /// <summary>
@@ -547,17 +553,17 @@ namespace Lemoine.Cnc
         if (log.IsDebugEnabled) {
           log.Debug ("GetFirstString: the queue was null => return the current value");
         }
-        return m_current [param];
+        return m_current[param];
       }
-      
+
       string v = queue.Dequeue ();
-      m_current [param] = v;
+      m_current[param] = v;
       if (log.IsDebugEnabled) {
         log.Debug ($"GetFirstString: got {param}={v}");
       }
       return v;
     }
-    
+
     /// <summary>
     /// Dequeue all the items for a specified key and return the last one
     /// </summary>
@@ -566,9 +572,9 @@ namespace Lemoine.Cnc
     public string GetLastString (string param)
     {
       IQueue<string> queue = GetQueue (param);
-      if ( (null == queue) || (0 == queue.Count)) {
+      if ((null == queue) || (0 == queue.Count)) {
         log.Error ("GetLastString: empty or null queue => return the current value");
-        return m_current [param];
+        return m_current[param];
       }
       else {
         string v = null;
@@ -579,11 +585,11 @@ namespace Lemoine.Cnc
         if (log.IsDebugEnabled) {
           log.Debug ($"GetLastString: got {param}={v}");
         }
-        m_current [param] = v;
+        m_current[param] = v;
         return v;
       }
     }
-    
+
     /// <summary>
     /// Get the value that is associated to a specified key according to the parameter First
     /// </summary>
@@ -604,21 +610,15 @@ namespace Lemoine.Cnc
     /// </summary>
     /// <param name="param">key value</param>
     /// <returns></returns>
-    public int GetInt (string param)
-    {
-      return int.Parse (this.GetString (param));
-    }
-    
+    public int GetInt (string param) => int.Parse (this.GetString (param));
+
     /// <summary>
     /// Get the long value of a corresponding key
     /// </summary>
     /// <param name="param">key value</param>
     /// <returns></returns>
-    public long GetLong (string param)
-    {
-      return long.Parse (this.GetString (param));
-    }
-    
+    public long GetLong (string param) => long.Parse (this.GetString (param));
+
     /// <summary>
     /// Get the double value of a corresponding key
     /// </summary>
@@ -640,7 +640,7 @@ namespace Lemoine.Cnc
     {
       return bool.Parse (this.GetString (param));
     }
-    
+
     /// <summary>
     /// Get a percentage value of a corresponding key
     /// </summary>
@@ -648,7 +648,60 @@ namespace Lemoine.Cnc
     /// <returns></returns>
     public int GetPercent (string param)
     {
-      return int.Parse (this.GetString (param).TrimEnd (new char [] {'%'}));
+      return int.Parse (this.GetString (param).TrimEnd (new char[] { '%' }));
+    }
+    /// <summary>
+    /// Get a set of values for the keys in a list string
+    /// </summary>
+    /// <param name="param">list string of values to get</param>
+    /// <returns></returns>
+    public IDictionary<string, long> GetLongSet (string param) => GetSet (param, GetLong);
+
+    /// <summary>
+    /// Get a set of values for the keys in a list string
+    /// </summary>
+    /// <param name="param">list string of values to get</param>
+    /// <returns></returns>
+    public IDictionary<string, int> GetIntSet (string param) => GetSet (param, GetInt);
+
+    /// <summary>
+    /// Get a set of values for the keys in a list string
+    /// </summary>
+    /// <param name="param">list string of values to get</param>
+    /// <returns></returns>
+    public IDictionary<string, double> GetDoubleSet (string param) => GetSet (param, GetDouble);
+
+    /// <summary>
+    /// Get a set of values for the keys in a list string
+    /// </summary>
+    /// <param name="param">list string of values to get</param>
+    /// <returns></returns>
+    IDictionary<string, T> GetSet<T> (string param, Func<string, T> get)
+    {
+      try {
+        var keys = Lemoine.Collections.EnumerableString.ParseListString (param);
+        return GetEnumerable<T> (keys, get)
+          .ToDictionary (x => x.Key, x => x.Value);
+      }
+      catch (Exception ex) {
+        log.Error ($"GetSet: param={param}", ex);
+        throw;
+      }
+    }
+
+    IEnumerable<KeyValuePair<string, T>> GetEnumerable<T> (IEnumerable<string> keys, Func<string, T> get)
+    {
+      foreach (var key in keys) {
+        T v;
+        try {
+          v = get (key);
+        }
+        catch (Exception ex) {
+          log.Error ($"GetEnumerable: exception for key={key}", ex);
+          continue;
+        }
+        yield return new KeyValuePair<string, T> (key, v);
+      }
     }
     #endregion // Methods
   }

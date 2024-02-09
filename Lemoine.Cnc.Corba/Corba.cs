@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 
 using Lemoine.Core.Log;
@@ -315,17 +317,13 @@ namespace Lemoine.Cnc
               result = m_corbaObject.SetRequiredProcesses (m_requiredProcesses);
             }
             if (!result) {
-              log.ErrorFormat ("Start: " +
-                               "SetRequiredProcesses failed in the server");
+              log.Error ("Start: SetRequiredProcesses failed in the server");
               return;
             }
           }
         }
         catch (Exception ex) {
-          log.ErrorFormat ("Start: " +
-                           "corbaObject for parameters raised {0}" +
-                           "=> disconnect and reset the CORBA channel",
-                           ex);
+          log.Error ("Start: corbaObject for parameters exception => disconnect and reset the CORBA channel", ex);
           ManageCorbaError ();
           throw;
         }
@@ -338,17 +336,13 @@ namespace Lemoine.Cnc
           m_startOk = m_corbaObject.Start ();
         }
         catch (Exception ex) {
-          log.ErrorFormat ("Start: " +
-                           "corbaObject for Start raised {0}" +
-                           "=> disconnect and reset the CORBA channel",
-                           ex);
+          log.Error ("Start: corbaObject for Start exception => disconnect and reset the CORBA channel", ex);
           m_isConnected = false;
           m_startOk = false;
           ManageCorbaError ();
         }
         if (!m_startOk) {
-          log.ErrorFormat ("Start: " +
-                           "Start failed in the server");
+          log.ErrorFormat ("Start: Start failed in the server");
         }
       }
     }
@@ -384,10 +378,7 @@ namespace Lemoine.Cnc
           result = m_corbaObject.Finish ();
         }
         catch (Exception ex) {
-          log.ErrorFormat ("Finish: " +
-                           "corbaObject for Finish raised {0}" +
-                           "=> disconnect and reset the CORBA channel",
-                           ex);
+          log.Error ("Finish: corbaObject for Finish exception => disconnect and reset the CORBA channel", ex);
           m_isConnected = false;
           ManageCorbaError ();
         }
@@ -427,18 +418,13 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.ErrorFormat ("GetString: " +
-                         "corbaObject.GetString failed with {0} " +
-                         "=> disconnect and reset the CORBA channel",
-                         ex);
+        log.Error ("GetString: corbaObject.GetString failed => disconnect and reset the CORBA channel", ex);
         m_isConnected = false;
         ManageCorbaError ();
         throw;
       }
       if (!success) {
-        log.ErrorFormat ("GetString: " +
-                         "remote method GetString returned false " +
-                         "(not a connection problem, do not disconnect)");
+        log.Error ("GetString: remote method GetString returned false (not a connection problem, do not disconnect)");
         if (m_successSleepTime > 0) {
           Thread.Sleep (m_successSleepTime);
         }
@@ -483,10 +469,7 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.ErrorFormat ("GetWString: " +
-                         "corbaObject.GetWString failed with {0} " +
-                         "=> disconnect and reset the CORBA channel",
-                         ex);
+        log.Error ("GetWString: corbaObject.GetWString failed with => disconnect and reset the CORBA channel", ex);
         m_isConnected = false;
         ManageCorbaError ();
         throw;
@@ -574,13 +557,11 @@ namespace Lemoine.Cnc
     public long GetLong (string param)
     {
       if (!m_isConnected) {
-        log.Error ("GetLong: " +
-                   "not connected");
+        log.Error ("GetLong: not connected");
         throw new Exception ("Not connected");
       }
       if (!m_startOk) {
-        log.Error ("GetLong: " +
-                   "start was not ok");
+        log.Error ("GetLong: start was not ok");
         throw new Exception ("Start failed");
       }
       
@@ -595,18 +576,13 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.ErrorFormat ("GetLong: " +
-                         "corbaObject.GetLong failed with {0} " +
-                         "=> disconnect and reset the CORBA channel",
-                         ex);
+        log.Error ("GetLong: corbaObject.GetLong failed => disconnect and reset the CORBA channel", ex);
         m_isConnected = false;
         ManageCorbaError ();
         throw;
       }
       if (!success) {
-        log.ErrorFormat ("GetLong: " +
-                         "remote method GetLong returned false " +
-                         "(not a connection problem, do not disconnect)");
+        log.Error ("GetLong: remote method GetLong returned false (not a connection problem, do not disconnect)");
         if (m_successSleepTime > 0) {
           Thread.Sleep (m_successSleepTime);
         }
@@ -651,9 +627,7 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.ErrorFormat ("GetDouble: " +
-                         "corbaObject.GetDouble failed with {0} " +
-                         "=> disconnect and reset the CORBA channel",
+        log.Error ("GetDouble: corbaObject.GetDouble failed => disconnect and reset the CORBA channel",
                          ex);
         m_isConnected = false;
         ManageCorbaError ();
@@ -691,7 +665,48 @@ namespace Lemoine.Cnc
       return (1 == GetInt (param));
     }
 
-    
+    /// <summary>
+    /// Get a set of values for the keys in a list string
+    /// </summary>
+    /// <param name="param">separator, template with {0}, list string of values to get</param>
+    /// <returns></returns>
+    public IDictionary<string, double> GetDoubleSet (string param) => GetSet (param, GetDouble);
+
+    /// <summary>
+    /// Get a set of values for the keys in a list string
+    /// </summary>
+    /// <param name="param">separator, template with {0}, list string of values to get</param>
+    /// <returns></returns>
+    IDictionary<string, T> GetSet<T> (string param, Func<string, T> get)
+    {
+      var p = Lemoine.Collections.EnumerableString.ParseListString (param, 2);
+      var template = p[0];
+      try {
+        var keys = Lemoine.Collections.EnumerableString.ParseListString (p[1]);
+        return GetEnumerable<T> (template, keys, get)
+          .ToDictionary (x => x.Key, x => x.Value);
+      }
+      catch (Exception ex) {
+        log.Error ($"GetSet: param={param}", ex);
+        throw;
+      }
+    }
+
+    IEnumerable<KeyValuePair<string, T>> GetEnumerable<T> (string template, IEnumerable<string> keys, Func<string, T> get)
+    {
+      foreach (var key in keys) {
+        T v;
+        try {
+          v = get (string.Format (template, key));
+        }
+        catch (Exception ex) {
+          log.Error ($"GetEnumerable: exception for key={key}", ex);
+          continue;
+        }
+        yield return new KeyValuePair<string, T> (key, v);
+      }
+    }
+
     void ManageCorbaError ()
     {
       ++m_corbaErrorCounter;
