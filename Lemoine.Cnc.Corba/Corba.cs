@@ -277,9 +277,7 @@ namespace Lemoine.Cnc
                                                                                    m_objectReference);
         }
         catch (Exception ex) {
-          log.ErrorFormat ("Start: " +
-                           "resolving {0}/{1} failed with {2}",
-                           m_namingContext, m_objectReference, ex);
+          log.Error ($"Start: resolving {m_namingContext}/{m_objectReference} failed", ex);
           ManageCorbaError ();
           throw;
         }
@@ -522,10 +520,7 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.ErrorFormat ("GetInt: " +
-                         "corbaObject.GetInt failed with {0} " +
-                         "=> disconnect and reset the CORBA channel",
-                         ex);
+        log.Error ("GetInt: corbaObject.GetInt failed => disconnect and reset the CORBA channel", ex);
         m_isConnected = false;
         ManageCorbaError ();
         throw;
@@ -627,25 +622,22 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.Error ("GetDouble: corbaObject.GetDouble failed => disconnect and reset the CORBA channel",
-                         ex);
+        log.Error ("GetDouble: corbaObject.GetDouble failed => disconnect and reset the CORBA channel", ex);
         m_isConnected = false;
         ManageCorbaError ();
         throw;
       }
       if (!success) {
-        log.ErrorFormat ("GetDouble: " +
-                         "remote method GetDouble returned false " +
-                         "(not a connection problem, do not disconnect)");
+        log.Error ("GetDouble: remote method GetDouble returned false (not a connection problem, do not disconnect)");
         if (m_successSleepTime > 0) {
           Thread.Sleep (m_successSleepTime);
         }
         throw new Exception ("Remote GetDouble failed");
       }
-      
-      log.DebugFormat ("GetDouble: " +
-                       "remote method GetDouble returned {0}",
-                       result);
+
+      if (log.IsDebugEnabled) {
+        log.Debug ($"GetDouble: remote method GetDouble returned {result}");
+      }
       if (m_successSleepTime > 0) {
         Thread.Sleep (m_successSleepTime);
       }
