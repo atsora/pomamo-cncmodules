@@ -248,14 +248,11 @@ namespace Lemoine.Cnc
       try {
         bool success = m_corbaObject.Close ();
         if (!success) {
-          log.ErrorFormat ("Dispose: " +
-                           "remote method Close returned false ");
+          log.Error ("Dispose: remote method Close returned false ");
         }
       }
       catch (Exception ex) {
-        log.Error ("Dispose: " +
-                   "corbaObject.Close failed with {0}",
-                   ex);
+        log.Error ("Dispose: corbaObject.Close failed", ex);
       }
       finally {
         GC.SuppressFinalize (this);
@@ -299,8 +296,7 @@ namespace Lemoine.Cnc
               result = m_corbaObject.SetConnectionParameter (m_connectionParameter);
             }
             if (!result) {
-              log.ErrorFormat ("Start: " +
-                               "SetConnectionParameter failed in the server");
+              log.Error ("Start: SetConnectionParameter failed in the server");
               return;
             }
           }
@@ -340,7 +336,7 @@ namespace Lemoine.Cnc
           ManageCorbaError ();
         }
         if (!m_startOk) {
-          log.ErrorFormat ("Start: Start failed in the server");
+          log.Error ("Start: Start failed in the server");
         }
       }
     }
@@ -353,19 +349,16 @@ namespace Lemoine.Cnc
       if (m_useFinish) {
         // - Corba status check
         if (!m_isConnected) {
-          log.Info ("Finish: " +
-                    "not connected => skip the finish part");
+          log.Info ("Finish: not connected => skip the finish part");
           return;
         }
         if (!m_startOk) {
-          log.Info ("Finish: " +
-                    "start was not ok => skip the finish part");
+          log.Info ("Finish: start was not ok => skip the finish part");
           return;
         }
         
         if (null == m_corbaObject) {
-          log.Fatal ("Finish: " +
-                     "the corba object is null although start was ok");
+          log.Fatal ("Finish: the corba object is null although start was ok");
           Debug.Assert (false);
           return;
         }
@@ -381,8 +374,7 @@ namespace Lemoine.Cnc
           ManageCorbaError ();
         }
         if (!result) {
-          log.ErrorFormat ("Finish: " +
-                           "Finish failed in the server");
+          log.Error ("Finish: Finish failed in the server");
         }
       }
     }
@@ -395,13 +387,11 @@ namespace Lemoine.Cnc
     public string GetString (string param)
     {
       if (!m_isConnected) {
-        log.Error ("GetString: " +
-                   "not connected");
+        log.Error ("GetString: not connected");
         throw new Exception ("Not connected");
       }
       if (!m_startOk) {
-        log.Error ("GetString: " +
-                   "start was not ok");
+        log.Error ("GetString: start was not ok");
         throw new Exception ("Start failed");
       }
       
@@ -446,13 +436,11 @@ namespace Lemoine.Cnc
     public string GetWString (string param)
     {
       if (!m_isConnected) {
-        log.Error ("GetWString: " +
-                   "not connected");
+        log.Error ("GetWString: not connected");
         throw new Exception ("Not connected");
       }
       if (!m_startOk) {
-        log.Error ("GetWString: " +
-                   "start was not ok");
+        log.Error ("GetWString: start was not ok");
         throw new Exception ("Start failed");
       }
       
@@ -473,9 +461,7 @@ namespace Lemoine.Cnc
         throw;
       }
       if (!success) {
-        log.ErrorFormat ("GetWString: " +
-                         "remote method GetWString returned false " +
-                         "(not a connection problem, do not disconnect)");
+        log.Error ("GetWString: remote method GetWString returned false (not a connection problem, do not disconnect)");
         if (m_successSleepTime > 0) {
           Thread.Sleep (m_successSleepTime);
         }
@@ -499,13 +485,11 @@ namespace Lemoine.Cnc
     public int GetInt (string param)
     {
       if (!m_isConnected) {
-        log.Error ("GetInt: " +
-                   "not connected");
+        log.Error ("GetInt: not connected");
         throw new Exception ("Not connected");
       }
       if (!m_startOk) {
-        log.Error ("GetInt: " +
-                   "start was not ok");
+        log.Error ("GetInt: start was not ok");
         throw new Exception ("Start failed");
       }
       
@@ -526,9 +510,7 @@ namespace Lemoine.Cnc
         throw;
       }
       if (!success) {
-        log.ErrorFormat ("GetInt: " +
-                         "remote method GetInt returned false " +
-                         "(not a connection problem, do not disconnect)");
+        log.Error ("GetInt: remote method GetInt returned false (not a connection problem, do not disconnect)");
         if (m_successSleepTime > 0) {
           Thread.Sleep (m_successSleepTime);
         }
@@ -601,13 +583,11 @@ namespace Lemoine.Cnc
     public double GetDouble (string param)
     {
       if (!m_isConnected) {
-        log.Error ("GetDouble: " +
-                   "not connected");
+        log.Error ("GetDouble: not connected");
         throw new Exception ("Not connected");
       }
       if (!m_startOk) {
-        log.Error ("GetDouble: " +
-                   "start was not ok");
+        log.Error ("GetDouble: start was not ok");
         throw new Exception ("Start failed");
       }
       
@@ -703,15 +683,11 @@ namespace Lemoine.Cnc
     {
       ++m_corbaErrorCounter;
       if (0 == (m_corbaErrorCounter % RESET_CHANNEL_FREQUENCY)) { // Reset the channel only every 10 Corba errors
-        log.WarnFormat ("ManageCorbaError: " +
-                        "reset the channel, corba error counter = {0}",
-                        m_corbaErrorCounter);
+        log.Warn ($"ManageCorbaError: reset the channel, corba error counter = {m_corbaErrorCounter}");
         Lemoine.CorbaHelper.CorbaClientConnection.ResetChannel ();
       }
       if (m_errorSleepTime > 0) {
-        log.InfoFormat ("ManageCorbaError: " +
-                        "about to sleep {0} ms",
-                        m_errorSleepTime);
+        log.Info ($"ManageCorbaError: about to sleep {m_errorSleepTime} ms");
         Thread.Sleep (m_errorSleepTime);
       }
     }
