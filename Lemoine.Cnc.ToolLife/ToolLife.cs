@@ -39,7 +39,6 @@ namespace Lemoine.Cnc
     bool m_isInitialized = false;
     int m_machineId = 0;
     int m_machineModuleId = 0;
-    IMachineModule m_machineModule = null;
     bool m_error = false;
     bool m_previousStateOk = false;
     DateTime m_currentDateTime, m_previousDateTime;
@@ -139,11 +138,6 @@ namespace Lemoine.Cnc
         m_error = true;
         return false;
       }
-      if (null == m_machineModule) {
-        log.Error ("Start: no machine module with id {0}, return false");
-        m_error = true;
-        return false;
-      }
 
       return true;
     }
@@ -170,9 +164,6 @@ namespace Lemoine.Cnc
             if (timeSpan != null && timeSpan.HasValue) {
               m_obsoleteDuration = timeSpan.Value;
             }
-
-            m_machineModule = ModelDAOHelper.DAOFactory.MachineModuleDAO
-              .FindByIdWithMonitoredMachine (m_machineModuleId);
           }
         }
 
@@ -191,30 +182,30 @@ namespace Lemoine.Cnc
         foreach (var unit in units) {
           SetActive ();
           switch (unit.Id) {
-          case 14:
-            m_dicUnit[ToolUnit.Unknown] = unit;
-            break;
-          case 11:
-            m_dicUnit[ToolUnit.TimeSeconds] = unit;
-            break;
-          case 5:
-            m_dicUnit[ToolUnit.Parts] = unit;
-            break;
-          case 15:
-            m_dicUnit[ToolUnit.NumberOfTimes] = unit;
-            break;
-          case 16:
-            m_dicUnit[ToolUnit.Wear] = unit;
-            break;
-          case 7:
-            m_dicUnit[ToolUnit.DistanceMillimeters] = unit;
-            break;
-          case 8:
-            m_dicUnit[ToolUnit.DistanceInch] = unit;
-            break;
-          case 17:
-            m_dicUnit[ToolUnit.NumberOfCycles] = unit;
-            break;
+            case 14:
+              m_dicUnit[ToolUnit.Unknown] = unit;
+              break;
+            case 11:
+              m_dicUnit[ToolUnit.TimeSeconds] = unit;
+              break;
+            case 5:
+              m_dicUnit[ToolUnit.Parts] = unit;
+              break;
+            case 15:
+              m_dicUnit[ToolUnit.NumberOfTimes] = unit;
+              break;
+            case 16:
+              m_dicUnit[ToolUnit.Wear] = unit;
+              break;
+            case 7:
+              m_dicUnit[ToolUnit.DistanceMillimeters] = unit;
+              break;
+            case 8:
+              m_dicUnit[ToolUnit.DistanceInch] = unit;
+              break;
+            case 17:
+              m_dicUnit[ToolUnit.NumberOfCycles] = unit;
+              break;
           }
         }
       }
@@ -225,10 +216,12 @@ namespace Lemoine.Cnc
       // Find all tool life event configs related to the current machine
       m_toolLifeEventConfigs.Clear ();
       using (IDAOSession session = ModelDAOHelper.DAOFactory.OpenSession ()) {
+        var machineModule = ModelDAOHelper.DAOFactory.MachineModuleDAO
+          .FindByIdWithMonitoredMachine (m_machineModuleId);
         IList<IEventToolLifeConfig> listTmp = ModelDAOHelper.DAOFactory.EventToolLifeConfigDAO.FindAllForConfig ();
         foreach (var item in listTmp) {
           SetActive ();
-          if (item.MachineFilter == null || item.MachineFilter.IsMatch (m_machineModule.MonitoredMachine)) {
+          if (item.MachineFilter == null || item.MachineFilter.IsMatch (machineModule.MonitoredMachine)) {
             if (!m_toolLifeEventConfigs.ContainsKey (item.Type)) {
               m_toolLifeEventConfigs[item.Type] = new List<IEventToolLifeConfig> ();
             }
@@ -245,14 +238,15 @@ namespace Lemoine.Cnc
 
       // Update current MOS
       using (IDAOSession session = ModelDAOHelper.DAOFactory.OpenSession ()) {
-        ModelDAOHelper.DAOFactory.MachineModuleDAO.Lock (m_machineModule);
+        var machineModule = ModelDAOHelper.DAOFactory.MachineModuleDAO
+          .FindByIdWithMonitoredMachine (m_machineModuleId);
         var oss = ModelDAOHelper.DAOFactory.ObservationStateSlotDAO.FindAt (
-          m_machineModule.MonitoredMachine, DateTime.UtcNow);
+          machineModule.MonitoredMachine, DateTime.UtcNow);
         if (oss != null) {
           m_currentMachineObservationState = oss.MachineObservationState;
         }
         else {
-          log.WarnFormat ("UpdateCurrentMOS: not defined for machine module {0}", m_machineModule);
+          log.WarnFormat ("UpdateCurrentMOS: not defined for machine module {0}", machineModule);
         }
       }
     }
@@ -289,8 +283,9 @@ namespace Lemoine.Cnc
       m_previousStateOk = false;
       using (IDAOSession session = ModelDAOHelper.DAOFactory.OpenSession ()) {
         using (IDAOTransaction transaction = session.BeginReadOnlyTransaction ("PreviousStateToolDataAcquisition")) {
-          ModelDAOHelper.DAOFactory.MachineModuleDAO.Lock (m_machineModule);
-          var acquisitionState = ModelDAOHelper.DAOFactory.AcquisitionStateDAO.GetAcquisitionState (m_machineModule, AcquisitionStateKey.Tools);
+          var machineModule = ModelDAOHelper.DAOFactory.MachineModuleDAO
+            .FindByIdWithMonitoredMachine (m_machineModuleId);
+          var acquisitionState = ModelDAOHelper.DAOFactory.AcquisitionStateDAO.GetAcquisitionState (machineModule, AcquisitionStateKey.Tools);
           if (acquisitionState == null) {
             log.InfoFormat ("ProcessData: no existing data for machine module {0} in the database => no comparison", m_machineModuleId);
             m_previousStateOk = false;
@@ -315,13 +310,14 @@ namespace Lemoine.Cnc
           using (IDAOSession session = ModelDAOHelper.DAOFactory.OpenSession ()) {
             using (IDAOTransaction transaction = session.BeginTransaction ("DeleteAllToolData")) {
               // Delete everything
-              ModelDAOHelper.DAOFactory.MachineModuleDAO.Lock (m_machineModule);
-              var toolLifes = ModelDAOHelper.DAOFactory.ToolLifeDAO.FindAllByMachineModule (m_machineModule);
+              var machineModule = ModelDAOHelper.DAOFactory.MachineModuleDAO
+                .FindByIdWithMonitoredMachine (m_machineModuleId);
+              var toolLifes = ModelDAOHelper.DAOFactory.ToolLifeDAO.FindAllByMachineModule (machineModule);
               foreach (var toolLife in toolLifes) {
                 ModelDAOHelper.DAOFactory.ToolLifeDAO.MakeTransient (toolLife);
               }
 
-              var toolPositions = ModelDAOHelper.DAOFactory.ToolPositionDAO.FindByMachineModule (m_machineModule);
+              var toolPositions = ModelDAOHelper.DAOFactory.ToolPositionDAO.FindByMachineModule (machineModule);
               foreach (var toolPosition in toolPositions) {
                 ModelDAOHelper.DAOFactory.ToolPositionDAO.MakeTransient (toolPosition);
               }
@@ -334,8 +330,9 @@ namespace Lemoine.Cnc
           // Delete tools that don't match the new ones, if KeepRemovedTools is not on
           using (IDAOSession session = ModelDAOHelper.DAOFactory.OpenSession ()) {
             using (IDAOTransaction transaction = session.BeginTransaction ("DeleteSomeToolData")) {
-              ModelDAOHelper.DAOFactory.MachineModuleDAO.Lock (m_machineModule);
-              IList<IToolPosition> positions = ModelDAOHelper.DAOFactory.ToolPositionDAO.FindByMachineModule (m_machineModule);
+              var machineModule = ModelDAOHelper.DAOFactory.MachineModuleDAO
+                .FindByIdWithMonitoredMachine (m_machineModuleId);
+              IList<IToolPosition> positions = ModelDAOHelper.DAOFactory.ToolPositionDAO.FindByMachineModule (machineModule);
               foreach (var position in positions) {
                 SetActive ();
                 bool found = false;
@@ -347,7 +344,7 @@ namespace Lemoine.Cnc
                 }
                 if (!found) {
                   // A tool position is removed
-                  ProcessRemovedTool (position);
+                  ProcessRemovedTool (machineModule, position);
                 }
               }
               transaction.Commit ();
@@ -361,15 +358,17 @@ namespace Lemoine.Cnc
 
       using (IDAOSession session = ModelDAOHelper.DAOFactory.OpenSession ()) {
         using (IDAOTransaction transaction = session.BeginTransaction ("ProcessData")) {
+          var machineModule = ModelDAOHelper.DAOFactory.MachineModuleDAO
+            .FindByIdWithMonitoredMachine (m_machineModuleId);
           // For each tool in the database
-          IList<IToolPosition> positions = ModelDAOHelper.DAOFactory.ToolPositionDAO.FindByMachineModule (m_machineModule);
+          IList<IToolPosition> positions = ModelDAOHelper.DAOFactory.ToolPositionDAO.FindByMachineModule (machineModule);
           foreach (var position in positions) {
             // Find the index of the corresponding incoming tool
             for (int i = 0; i < data.ToolNumber; i++) {
               SetActive ();
               if (string.Equals (position.ToolId, data[i].ToolId, StringComparison.CurrentCultureIgnoreCase)) {
                 // A tool position is updated
-                ProcessUpdatedTool (position, data[i]);
+                ProcessUpdatedTool (machineModule, position, data[i]);
                 data.RemoveTool (i);
                 break;
               }
@@ -379,12 +378,12 @@ namespace Lemoine.Cnc
           // Remaining tools are added
           for (int i = 0; i < data.ToolNumber; i++) {
             SetActive ();
-            ProcessNewTool (data[i]);
+            ProcessNewTool (machineModule, data[i]);
           }
 
           // Update the date time of the acquisition
-          var acquisitionState = ModelDAOHelper.DAOFactory.AcquisitionStateDAO.GetAcquisitionState (m_machineModule, AcquisitionStateKey.Tools) ??
-            ModelDAOHelper.ModelFactory.CreateAcquisitionState (m_machineModule, AcquisitionStateKey.Tools);
+          var acquisitionState = ModelDAOHelper.DAOFactory.AcquisitionStateDAO.GetAcquisitionState (machineModule, AcquisitionStateKey.Tools) ??
+            ModelDAOHelper.ModelFactory.CreateAcquisitionState (machineModule, AcquisitionStateKey.Tools);
           acquisitionState.DateTime = m_currentDateTime;
           ModelDAOHelper.DAOFactory.AcquisitionStateDAO.MakePersistent (acquisitionState);
 
@@ -407,10 +406,10 @@ namespace Lemoine.Cnc
       }
     }
 
-    void ProcessNewTool (ToolLifeData.ToolLifeDataItem dataItem)
+    void ProcessNewTool (IMachineModule machineModule, ToolLifeData.ToolLifeDataItem dataItem)
     {
       // Create a new position
-      var position = ModelDAOHelper.ModelFactory.CreateToolPosition (m_machineModule, dataItem.ToolId);
+      var position = ModelDAOHelper.ModelFactory.CreateToolPosition (machineModule, dataItem.ToolId);
       position.ToolNumber = dataItem.ToolNumber;
       position.Pot = dataItem.PotNumber;
       position.Magazine = dataItem.MagazineNumber;
@@ -431,7 +430,7 @@ namespace Lemoine.Cnc
         SetActive ();
         ToolLifeData.ToolLifeDataItem.LifeDescription ld = dataItem[i];
         IToolLife tl = ModelDAOHelper.ModelFactory.CreateToolLife (
-          m_machineModule, position,
+          machineModule, position,
           m_dicUnit[ld.LifeType],
           ld.LifeDirection);
         tl.Value = ld.LifeValue;
@@ -461,7 +460,7 @@ namespace Lemoine.Cnc
 
       if (m_previousStateOk) {
         // New event: tool registration
-        CreateNewToolEvent (EventToolLifeType.ToolRegistration,
+        CreateNewToolEvent (machineModule, EventToolLifeType.ToolRegistration,
                            "A new tool has been registered.",
                            null, null,
                            dataItem,
@@ -469,7 +468,7 @@ namespace Lemoine.Cnc
       }
     }
 
-    void ProcessRemovedTool (IToolPosition position)
+    void ProcessRemovedTool (IMachineModule machineModule, IToolPosition position)
     {
       if (KeepRemovedTools) {
         // Add a left time if needed
@@ -481,13 +480,13 @@ namespace Lemoine.Cnc
       else {
         if (m_previousStateOk) {
           // New event: tool removal
-          CreateNewToolEvent (EventToolLifeType.ToolRemoval,
+          CreateNewToolEvent (machineModule, EventToolLifeType.ToolRemoval,
                              "An old tool has been removed.",
                              position, null, null, null);
         }
 
         // Remove a tool (and all its corresponding tool lifes)
-        var toolLifes = ModelDAOHelper.DAOFactory.ToolLifeDAO.FindAllByMachinePosition (m_machineModule, position);
+        var toolLifes = ModelDAOHelper.DAOFactory.ToolLifeDAO.FindAllByMachinePosition (machineModule, position);
         foreach (var toolLife in toolLifes) {
           SetActive ();
           ModelDAOHelper.DAOFactory.ToolLifeDAO.MakeTransient (toolLife);
@@ -496,10 +495,10 @@ namespace Lemoine.Cnc
       }
     }
 
-    void ProcessUpdatedTool (IToolPosition position, ToolLifeData.ToolLifeDataItem dataItem)
+    void ProcessUpdatedTool (IMachineModule machineModule, IToolPosition position, ToolLifeData.ToolLifeDataItem dataItem)
     {
       // For each tool life in the database
-      IList<IToolLife> lifes = ModelDAOHelper.DAOFactory.ToolLifeDAO.FindAllByMachinePosition (m_machineModule, position);
+      IList<IToolLife> lifes = ModelDAOHelper.DAOFactory.ToolLifeDAO.FindAllByMachinePosition (machineModule, position);
       foreach (var life in lifes) {
         SetActive ();
         // Find the index of the corresponding incoming tool life
@@ -515,7 +514,7 @@ namespace Lemoine.Cnc
 
         if (index != -1) {
           // A tool life is updated
-          ProcessUpdatedLife (position, life, dataItem, dataItem[index]);
+          ProcessUpdatedLife (machineModule, position, life, dataItem, dataItem[index]);
           dataItem.RemoveLifeDescription (index);
         }
         else {
@@ -530,7 +529,7 @@ namespace Lemoine.Cnc
       // New tool life
       for (int i = 0; i < dataItem.LifeDescriptionNumber; i++) {
         SetActive ();
-        ProcessNewLife (position, dataItem[i]);
+        ProcessNewLife (machineModule, position, dataItem[i]);
 
         // Last change of the tool life
         position.LifeChangedDateTime = m_currentDateTime;
@@ -544,7 +543,7 @@ namespace Lemoine.Cnc
         // Tool moved?
         if (!AreEqual (position.Magazine, dataItem.MagazineNumber) ||
             !AreEqual (position.Pot, dataItem.PotNumber)) {
-          CreateNewToolEvent (EventToolLifeType.ToolMoved,
+          CreateNewToolEvent (machineModule, EventToolLifeType.ToolMoved,
                              string.Format ("Tool moved from mag. {0} pot {1} to mag. {2} pot {3}.",
                                            position.Magazine, position.Pot,
                                            dataItem.MagazineNumber, dataItem.PotNumber),
@@ -555,7 +554,7 @@ namespace Lemoine.Cnc
         // Status change => available?
         if (!position.ToolState.IsAvailable () &&
             dataItem.ToolState.IsAvailable ()) {
-          CreateNewToolEvent (EventToolLifeType.StatusChangeToAvailable,
+          CreateNewToolEvent (machineModule, EventToolLifeType.StatusChangeToAvailable,
                              string.Format ("Status is now available: {0} => {1}",
                                            position.ToolState.Name (true),
                                            dataItem.ToolState.Name (true)),
@@ -566,7 +565,7 @@ namespace Lemoine.Cnc
         // Status change => temporary unavailable?
         if (!position.ToolState.IsTemporaryUnavailable () &&
             dataItem.ToolState.IsTemporaryUnavailable ()) {
-          CreateNewToolEvent (EventToolLifeType.StatusChangeToTemporaryUnavailable,
+          CreateNewToolEvent (machineModule, EventToolLifeType.StatusChangeToTemporaryUnavailable,
                              string.Format ("Status is now temporary unavailable: {0} => {1}",
                                            position.ToolState.Name (true),
                                            dataItem.ToolState.Name (true)),
@@ -577,7 +576,7 @@ namespace Lemoine.Cnc
         // Status change => definitely unavailable?
         if (!position.ToolState.IsDefinitelyUnavailable () &&
             dataItem.ToolState.IsDefinitelyUnavailable ()) {
-          CreateNewToolEvent (EventToolLifeType.StatusChangeToDefinitelyUnavailable,
+          CreateNewToolEvent (machineModule, EventToolLifeType.StatusChangeToDefinitelyUnavailable,
                              string.Format ("Status is now definitely unavailable: {0} => {1}",
                                            position.ToolState.Name (true),
                                            dataItem.ToolState.Name (true)),
@@ -604,10 +603,10 @@ namespace Lemoine.Cnc
       ModelDAOHelper.DAOFactory.ToolPositionDAO.MakePersistent (position);
     }
 
-    void ProcessNewLife (IToolPosition position, ToolLifeData.ToolLifeDataItem.LifeDescription ld)
+    void ProcessNewLife (IMachineModule machineModule, IToolPosition position, ToolLifeData.ToolLifeDataItem.LifeDescription ld)
     {
       IToolLife life = ModelDAOHelper.ModelFactory.CreateToolLife (
-        m_machineModule, position,
+        machineModule, position,
         m_dicUnit[ld.LifeType],
         ld.LifeDirection);
 
@@ -641,7 +640,7 @@ namespace Lemoine.Cnc
       ModelDAOHelper.DAOFactory.ToolLifeDAO.MakeTransient (life);
     }
 
-    void ProcessUpdatedLife (IToolPosition position,
+    void ProcessUpdatedLife (IMachineModule machineModule, IToolPosition position,
                             IToolLife life,
                             ToolLifeData.ToolLifeDataItem dataItem,
                             ToolLifeData.ToolLifeDataItem.LifeDescription ld)
@@ -651,13 +650,13 @@ namespace Lemoine.Cnc
         if (ld.LifeLimit != null && life.Limit != null &&
             ld.LifeLimit.HasValue && life.Limit.HasValue) {
           if (ld.LifeLimit.Value + 0.1 < life.Limit.Value) {
-            CreateNewToolEvent (EventToolLifeType.TotalLifeDecreased,
+            CreateNewToolEvent (machineModule, EventToolLifeType.TotalLifeDecreased,
                                "Total life decreased.",
                                position, life,
                                dataItem, ld);
           }
           else if (ld.LifeLimit.Value - 0.1 > life.Limit.Value) {
-            CreateNewToolEvent (EventToolLifeType.TotalLifeIncreased,
+            CreateNewToolEvent (machineModule, EventToolLifeType.TotalLifeIncreased,
                                "Total life increased.",
                                position, life,
                                dataItem, ld);
@@ -672,7 +671,7 @@ namespace Lemoine.Cnc
                                 ld.LifeWarningOffset.Value);
 
           if (Math.Abs (oldAbsolute - life.Warning.Value) > 0.1) {
-            CreateNewToolEvent (EventToolLifeType.WarningChanged,
+            CreateNewToolEvent (machineModule, EventToolLifeType.WarningChanged,
                                "Warning changed.",
                                position, life,
                                dataItem, ld);
@@ -689,13 +688,13 @@ namespace Lemoine.Cnc
           double newTrigger = m_offsetForResetValue;
 
           if ((life.Value > oldTrigger || m_percentForResetValue <= 0) && (ld.LifeValue < newTrigger || m_offsetForResetValue <= 0)) {
-            CreateNewToolEvent (EventToolLifeType.CurrentLifeReset,
+            CreateNewToolEvent (machineModule, EventToolLifeType.CurrentLifeReset,
                                "Current life reset.",
                                position, life,
                                dataItem, ld);
           }
           else {
-            CreateNewToolEvent (EventToolLifeType.CurrentLifeDecreased,
+            CreateNewToolEvent (machineModule, EventToolLifeType.CurrentLifeDecreased,
                                "Current life decreased.",
                                position, life,
                                dataItem, ld);
@@ -715,13 +714,13 @@ namespace Lemoine.Cnc
             ld.LifeValue;
 
           if ((life.Value < oldTrigger || m_percentForResetValue <= 0) && (ld.LifeValue > newTrigger || m_offsetForResetValue <= 0)) {
-            CreateNewToolEvent (EventToolLifeType.RestLifeReset,
+            CreateNewToolEvent (machineModule, EventToolLifeType.RestLifeReset,
                                "Rest life reset.",
                                position, life,
                                dataItem, ld);
           }
           else {
-            CreateNewToolEvent (EventToolLifeType.RestLifeIncreased,
+            CreateNewToolEvent (machineModule, EventToolLifeType.RestLifeIncreased,
                                "Rest life increased.",
                                position, life,
                                dataItem, ld);
@@ -743,7 +742,7 @@ namespace Lemoine.Cnc
             ld.LifeValue <= 0;
         }
         if (expirationReached) {
-          CreateNewToolEvent (EventToolLifeType.ExpirationReached,
+          CreateNewToolEvent (machineModule, EventToolLifeType.ExpirationReached,
                              "The tool has expired.",
                              position, life,
                              dataItem, ld);
@@ -766,7 +765,7 @@ namespace Lemoine.Cnc
               ld.LifeValue <= ld.LifeWarningOffset.Value;
           }
           if (warningReached) {
-            CreateNewToolEvent (EventToolLifeType.WarningReached,
+            CreateNewToolEvent (machineModule, EventToolLifeType.WarningReached,
                                "Warning reached: the tool will expire soon.",
                                position, life,
                                dataItem, ld);
@@ -804,7 +803,7 @@ namespace Lemoine.Cnc
       ModelDAOHelper.DAOFactory.ToolLifeDAO.MakePersistent (life);
     }
 
-    void CreateNewToolEvent (EventToolLifeType type,
+    void CreateNewToolEvent (IMachineModule machineModule, EventToolLifeType type,
                             string message,
                             IToolPosition position,
                             IToolLife life,
@@ -830,11 +829,11 @@ namespace Lemoine.Cnc
 
       if (config != null) {
         log.InfoFormat ("CreateNewToolEvent: new event processed '{0}' " +
-                       "for {1}, machine module {2}", message, dataItem, m_machineModule.Id);
+                       "for {1}, machine module {2}", message, dataItem, machineModule.Id);
 
         // Creation of the event
         IEventToolLife etl = ModelDAOHelper.ModelFactory.CreateEventToolLife (
-          config.Level, type, m_currentDateTime, m_machineModule);
+          config.Level, type, m_currentDateTime, machineModule);
 
         // Fill information in the event
         PrepareEventToolLife (ref etl, config, message,
@@ -846,7 +845,7 @@ namespace Lemoine.Cnc
       }
       else {
         log.InfoFormat ("CreateNewToolEvent: new event NOT stored '{0}' " +
-                       "for {1}, machine module {2}", message, dataItem, m_machineModule.Id);
+                       "for {1}, machine module {2}", message, dataItem, machineModule.Id);
       }
     }
 
