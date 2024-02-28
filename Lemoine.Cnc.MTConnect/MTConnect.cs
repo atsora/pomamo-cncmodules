@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2024 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -22,9 +23,6 @@ namespace Lemoine.Cnc
     static readonly string DEFAULT_MTCONNECTSTREAMS_NAMESPACE = "urn:mtconnect.org:MTConnectStreams:1.1";
     static readonly string DEFAULT_BLOCK_PATH = "//Controller//DataItems/DataItem[@type='BLOCK']"; // Full XPath is //Controller/Components/Path/DataItems
     static readonly string DEFAULT_BLOCK_XPATH = "//m:Block";
-    static readonly string SHARED_PATH_SEPARATOR = "\\";
-    static readonly string DEFAULT_PROGRAMFILE_EXTENSION = ".EIA";
-    static readonly string DEFAULT_COMMENT_SEARCH_STRING = "(POMAMO PART=";
 
     #region Members
     Random m_random = new Random ();
@@ -47,26 +45,6 @@ namespace Lemoine.Cnc
     /// <item>http://mtconnectagentaddress:port/mymachine/current?//Controller[@id="controllerId"]|//Axes[@id="AxesId"]</item>
     /// </summary>
     public string Url { get; set; }
-
-    /// <summary>
-    /// Path to shared programs folder
-    /// 
-    /// For example:
-    /// \\192.168.1.11\MC_Direct Mode Programs
-    /// </summary>
-    public string SharedProgramFolder { get; set; }
-
-    /// <summary>
-    /// string to identify the program file extension
-    /// 
-    /// </summary>
-    public string ProgramFileExtension { get; set; }
-
-    /// <summary>
-    /// string to identify part comment in program content
-    /// 
-    /// </summary>
-    public string CommentSearchString { get; set; }
 
     /// <summary>
     /// XML namespace
@@ -466,93 +444,18 @@ namespace Lemoine.Cnc
         this.m_programName = program;
       }
       else if (!program.Equals (this.m_programName)) {
-        log.DebugFormat ("GetProgramName: " +
-                         "program name was updated from {0} to {1} " +
-                         "=> clean the block internal values",
-                         this.m_programName, program);
+        if (log.IsDebugEnabled) {
+          log.DebugFormat ("GetProgramName: " +
+                           "program name was updated from {0} to {1} " +
+                           "=> clean the block internal values",
+                           this.m_programName, program);
+        }
         this.m_blockValues.Clear ();
         this.m_programName = program;
       }
 
       return program;
     }
-
-    /// <summary>
-    /// Get the program operation comment from program file.
-    /// The path to the program file folder is passed as parameter
-    /// File extension forced to .EIA
-    /// </summary>
-    /// <param name="param"></param>
-    /// <returns></returns>
-    public string GetProgramOperationComment (string param)
-    {
-      string comment = null;
-      string programFilePath = "";
-
-      string fileExtension = DEFAULT_PROGRAMFILE_EXTENSION;
-      if (!string.IsNullOrEmpty (ProgramFileExtension)) {
-        fileExtension = (ProgramFileExtension.Equals ("none") ? null : ProgramFileExtension);
-      }
-
-      if (!string.IsNullOrEmpty (SharedProgramFolder)) {
-        if (!string.IsNullOrEmpty (m_programName)) {
-          programFilePath = SharedProgramFolder +
-                            SHARED_PATH_SEPARATOR +
-                            m_programName +
-                            fileExtension;
-        }
-        else {
-          log.DebugFormat ("GetProgramOperationComment: no program name");
-        }
-      }
-      else {
-        log.ErrorFormat ("GetProgramOperationComment: SharedProgramFolder is not set");
-      }
-      log.DebugFormat ("GetProgramOperationComment: path: {0}", programFilePath);
-      comment = GetCommentFromFile (programFilePath);
-      return comment;
-    }
-
-    /// <summary>
-    /// parse the program file and extract first line starting with "(POMAMO PART=)"
-    /// The path to the program file folder is passed as parameter
-    /// </summary>
-    /// <param name="programFilePath"></param>
-    /// <returns></returns>
-    public string GetCommentFromFile (string programFilePath)
-    {
-      string comment = null;
-      string searchString = DEFAULT_COMMENT_SEARCH_STRING;
-      if (!string.IsNullOrEmpty (CommentSearchString)) {
-        searchString = CommentSearchString;
-      }
-      bool commentFound = false;
-      log.DebugFormat ("GetCommentFromFile: file: {0}", programFilePath);
-      // TODO ??? test file date for change ????
-
-      try {
-        using (StreamReader reader = new StreamReader (programFilePath)) {
-          while (!commentFound && !reader.EndOfStream) {
-            string line = reader.ReadLine ();
-            // log.DebugFormat ("GetCommentFromFile: line: {0}", line);
-            if (line.IndexOf (searchString, 0) != -1) {
-              log.DebugFormat ("GetCommentFromFile: line found: {0}", line);
-              comment = line;
-              commentFound = true;
-            }
-          }
-        }
-        if (!commentFound) {
-          log.DebugFormat ("GetCommentFromFile: no comment line found in: {0}", programFilePath);
-        }
-      }
-      catch (Exception ex) {
-        log.Error ($"GetCommentFromFile: failed to read file: {programFilePath}", ex);
-      }
-      log.Debug ($"GetCommentFromFile: comment: {comment}");
-      return comment;
-    }
-
     #endregion // Methods
   }
 }
