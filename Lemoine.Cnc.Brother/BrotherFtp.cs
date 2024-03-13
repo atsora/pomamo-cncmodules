@@ -61,7 +61,7 @@ namespace Lemoine.Cnc
       get => m_login;
       set {
         if (!string.Equals (m_login, value)) {
-          if (null != m_login) {
+          if (null != m_ftpClient) {
             m_ftpClient.Dispose ();
             m_ftpClient = null;
           }
@@ -78,8 +78,10 @@ namespace Lemoine.Cnc
       get => m_password;
       set {
         if (!string.Equals (m_password, value)) {
-          m_ftpClient.Dispose ();
-          m_ftpClient = null;
+          if (null != m_ftpClient) {
+            m_ftpClient.Dispose ();
+            m_ftpClient = null;
+          }
         }
         m_password = value;
       }

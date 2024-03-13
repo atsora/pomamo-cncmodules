@@ -10,11 +10,15 @@
   <ItemGroup>
     <PackageReference Include="FluentFTP" />
   </ItemGroup>
-  
+
   <ItemGroup>
     <ProjectReference Include="..\..\..\Libraries\Lemoine.Core\Lemoine.Core.csproj" AdditionalProperties="TargetFramework=netstandard2.0" />
     <ProjectReference Include="..\..\Lemoine.Cnc.ICncModule\Lemoine.Cnc.ICncModule.csproj" AdditionalProperties="TargetFramework=netstandard2.0" />
     <ProjectReference Include="..\..\Libraries\Lemoine.Cnc.CncAlarm\Lemoine.Cnc.CncAlarm.csproj" />
   </ItemGroup>
-  
+
+  <ItemGroup>
+    <None Update="alarms_brother_B0.csv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+
 </Project>
