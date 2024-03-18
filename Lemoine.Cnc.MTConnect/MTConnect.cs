@@ -360,11 +360,11 @@ namespace Lemoine.Cnc
       if (values.Length != 3) {
         log.Error ($"GetPosition: number of values is {values.Length} and not 3");
       }
-      var position = new Position ();
       var usCultureInfo = new CultureInfo ("en-US"); // Point is the decimal separator
-      position.X = double.Parse (values[0], usCultureInfo);
-      position.Y = double.Parse (values[1], usCultureInfo);
-      position.Z = double.Parse (values[2], usCultureInfo);
+      var x = double.Parse (values[0], usCultureInfo);
+      var y = double.Parse (values[1], usCultureInfo);
+      var z = double.Parse (values[2], usCultureInfo);
+      var position = new Position (x, y, z);
       return position;
     }
 
@@ -381,11 +381,11 @@ namespace Lemoine.Cnc
       if (values.Length != 3) {
         log.Error ($"GetPosition: number of values is {values.Length} and not 3");
       }
-      var position = new Position ();
       var usCultureInfo = new CultureInfo ("en-US"); // Point is the decimal separator
-      position.X = double.Parse (values[0], usCultureInfo);
-      position.Y = double.Parse (values[1], usCultureInfo);
-      position.Z = double.Parse (values[2], usCultureInfo);
+      var x = double.Parse (values[0], usCultureInfo);
+      var y = double.Parse (values[1], usCultureInfo);
+      var z = double.Parse (values[2], usCultureInfo);
+      var position = new Position (x, y, z);
       return position;
     }
 
@@ -402,11 +402,11 @@ namespace Lemoine.Cnc
       if (values.Length != 3) {
         log.Error ($"GetPositionCommaSep: number of values is {values.Length} and not 3");
       }
-      var position = new Position ();
       var usCultureInfo = new CultureInfo ("en-US"); // Point is the decimal separator
-      position.X = double.Parse (values[0], usCultureInfo);
-      position.Y = double.Parse (values[1], usCultureInfo);
-      position.Z = double.Parse (values[2], usCultureInfo);
+      var x = double.Parse (values[0], usCultureInfo);
+      var y = double.Parse (values[1], usCultureInfo);
+      var z = double.Parse (values[2], usCultureInfo);
+      var position = new Position (x, y, z);
       return position;
     }
 
