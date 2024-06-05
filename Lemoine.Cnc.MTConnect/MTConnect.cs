@@ -152,7 +152,7 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Start method
     /// </summary>
-    public void Start ()
+    public bool Start ()
     {
       // 1. Prepare streams
       m_error = true;
@@ -168,9 +168,13 @@ namespace Lemoine.Cnc
         // Namespace
         m_streamsNs = CreateNamespace (m_streamsNavigator, m_mtconnectStreamsPrefix, DEFAULT_MTCONNECTSTREAMS_NAMESPACE);
       }
+      catch (System.Net.WebException ex) {
+        log.Warn ($"Start: unable to connect to {this.Url}", ex);
+        return false;
+      }
       catch (Exception ex) {
         log.Error ($"Start: exception raised when trying to load URL={this.Url}", ex);
-        throw ex;
+        throw;
       }
 
       // No error
@@ -186,6 +190,7 @@ namespace Lemoine.Cnc
 
       // 3. Reset blocks
       m_hasBlocks = false;
+      return true;
     }
 
     XmlNamespaceManager CreateNamespace (XPathNavigator navigator, string prefix, string defaultNs)
