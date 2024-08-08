@@ -49,6 +49,24 @@ namespace Lemoine.Cnc
       }
       return result;
     }
+
+    /// <summary>
+    /// Get a value as a string
+    /// </summary>
+    /// <param name="param"></param>
+    /// <returns></returns>
+    public string GetString (string param) => GetCncValue (param).ToString ();
+
+    /// <summary>
+    /// Get lines
+    /// </summary>
+    /// <param name="param"></param>
+    /// <returns></returns>
+    public string[] GetLines (string param)
+    {
+      var s = GetCncValue (param).ToString ();
+      return s.Split ('\n');
+    }
     #endregion // Methods
   }
 }
