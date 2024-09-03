@@ -406,7 +406,7 @@ namespace Lemoine.Cnc
       }
     }
 
-    void ProcessNewTool (IMachineModule machineModule, ToolLifeData.ToolLifeDataItem dataItem)
+    void ProcessNewTool (IMachineModule machineModule, ToolLifeDataItem dataItem)
     {
       // Create a new position
       var position = ModelDAOHelper.ModelFactory.CreateToolPosition (machineModule, dataItem.ToolId);
@@ -428,7 +428,7 @@ namespace Lemoine.Cnc
       // Add tool life description
       for (int i = 0; i < dataItem.LifeDescriptionNumber; i++) {
         SetActive ();
-        ToolLifeData.ToolLifeDataItem.LifeDescription ld = dataItem[i];
+        var ld = dataItem[i];
         IToolLife tl = ModelDAOHelper.ModelFactory.CreateToolLife (
           machineModule, position,
           m_dicUnit[ld.LifeType],
@@ -495,7 +495,7 @@ namespace Lemoine.Cnc
       }
     }
 
-    void ProcessUpdatedTool (IMachineModule machineModule, IToolPosition position, ToolLifeData.ToolLifeDataItem dataItem)
+    void ProcessUpdatedTool (IMachineModule machineModule, IToolPosition position, ToolLifeDataItem dataItem)
     {
       // For each tool life in the database
       IList<IToolLife> lifes = ModelDAOHelper.DAOFactory.ToolLifeDAO.FindAllByMachinePosition (machineModule, position);
@@ -603,7 +603,7 @@ namespace Lemoine.Cnc
       ModelDAOHelper.DAOFactory.ToolPositionDAO.MakePersistent (position);
     }
 
-    void ProcessNewLife (IMachineModule machineModule, IToolPosition position, ToolLifeData.ToolLifeDataItem.LifeDescription ld)
+    void ProcessNewLife (IMachineModule machineModule, IToolPosition position, ToolLifeDescription ld)
     {
       IToolLife life = ModelDAOHelper.ModelFactory.CreateToolLife (
         machineModule, position,
@@ -642,8 +642,8 @@ namespace Lemoine.Cnc
 
     void ProcessUpdatedLife (IMachineModule machineModule, IToolPosition position,
                             IToolLife life,
-                            ToolLifeData.ToolLifeDataItem dataItem,
-                            ToolLifeData.ToolLifeDataItem.LifeDescription ld)
+                            ToolLifeDataItem dataItem,
+                            ToolLifeDescription ld)
     {
       if (m_previousStateOk) {
         // Total life changed?
@@ -807,8 +807,8 @@ namespace Lemoine.Cnc
                             string message,
                             IToolPosition position,
                             IToolLife life,
-                            ToolLifeData.ToolLifeDataItem dataItem,
-                            ToolLifeData.ToolLifeDataItem.LifeDescription lifeDescription)
+                            ToolLifeDataItem dataItem,
+                            ToolLifeDescription lifeDescription)
     {
       string toolId = (position != null ? position.ToolId : (dataItem != null ? dataItem.ToolId : "")) ?? "";
       if (!m_antiDuplicate.IsAllowed (toolId, type)) {
@@ -854,8 +854,8 @@ namespace Lemoine.Cnc
                               string message,
                               IToolPosition position,
                               IToolLife life,
-                              ToolLifeData.ToolLifeDataItem dataItem,
-                              ToolLifeData.ToolLifeDataItem.LifeDescription lifeDescription)
+                              ToolLifeDataItem dataItem,
+                              ToolLifeDescription lifeDescription)
     {
       etl.Config = config;
       etl.Message = message;
