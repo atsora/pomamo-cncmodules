@@ -57,6 +57,34 @@ namespace Lemoine.Cnc
     Opc.Ua.Client.ISession m_session;
     SessionReconnectHandler m_reconnectHandler;
     object m_lock = new object ();
+    int m_cncAcquisitionId = 0;
+
+    /// <summary>
+    /// Cnc acquisition id
+    /// </summary>
+    public int CncAcquisitionId
+    {
+      get => m_cncAcquisitionId;
+      set {
+        m_cncAcquisitionId = value;
+        log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.UAClient.{value}");
+      }
+    }
+
+    /// <summary>
+    /// Security mode: "" (Default) / SignAndEncrypt / Sign / None
+    /// </summary>
+    public string SecurityMode { get; set; } = "";
+
+    /// <summary>
+    /// User name if required
+    /// </summary>
+    public string Username { get; set; }
+
+    /// <summary>
+    /// Password if required
+    /// </summary>
+    public string Password { get; set; }
 
     /// <summary>
     /// Gets the client session.
@@ -88,8 +116,7 @@ namespace Lemoine.Cnc
     /// </summary>
     public UAClient (int cncAcquisitionId, ApplicationConfiguration configuration)
     {
-      log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.{cncAcquisitionId}.Client");
-
+      this.CncAcquisitionId = cncAcquisitionId;
       m_configuration = configuration;
       m_configuration.CertificateValidator.CertificateValidation += CertificateValidation;
     }
@@ -126,8 +153,28 @@ namespace Lemoine.Cnc
           // Get the endpoint by connecting to server's discovery endpoint.
           // Try to find the first endopint with security.
           var endpointDescription = CoreClientUtils.SelectEndpoint (m_configuration, serverUrl, useSecurity);
+          switch (this.SecurityMode) {
+            case "SignAndEncrypt":
+              endpointDescription.SecurityMode = MessageSecurityMode.SignAndEncrypt;
+              break;
+            case "Sign":
+              endpointDescription.SecurityMode = MessageSecurityMode.Sign;
+              break;
+            case "None":
+              endpointDescription.SecurityMode = MessageSecurityMode.None;
+              break;
+            default:
+              break;
+          }
           var endpointConfiguration = EndpointConfiguration.Create (m_configuration);
           var endpoint = new ConfiguredEndpoint (null, endpointDescription, endpointConfiguration);
+
+          var userIdentity = string.IsNullOrEmpty (this.Username)
+            ? new UserIdentity ()
+            : new UserIdentity (this.Username, this.Password);
+          if (log.IsDebugEnabled) {
+            log.Debug ($"ConnectAsync: username={this.Username} password={this.Password}");
+          }
 
           // Create the session
           var session = await Opc.Ua.Client.Session.Create (
@@ -137,7 +184,7 @@ namespace Lemoine.Cnc
               false,
               m_configuration.ApplicationName,
               SessionLifeTime,
-              new UserIdentity (),
+              userIdentity,
               null
           );
 

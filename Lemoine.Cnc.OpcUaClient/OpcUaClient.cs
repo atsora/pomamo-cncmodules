@@ -25,6 +25,9 @@ namespace Lemoine.Cnc
     ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.OpcUaClient");
     readonly Lemoine.Cnc.OpcUaConverter m_converter = new Lemoine.Cnc.OpcUaConverter ();
     int m_cncAcquisitionId = 0;
+    string m_securityMode;
+    string m_username;
+    string m_password;
     readonly IList<string> m_listParameters = new List<string> ();
     bool m_queryReady = false;
     readonly NodeManager m_nodeManager;
@@ -41,7 +44,10 @@ namespace Lemoine.Cnc
       get { return m_cncAcquisitionId; }
       set {
         m_cncAcquisitionId = value;
-        log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.UAClient.{value}");
+        log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.{value}");
+        if (null != m_client) {
+          m_client.CncAcquisitionId = value;
+        }
       }
     }
 
@@ -63,6 +69,20 @@ namespace Lemoine.Cnc
     public bool UseSecurity { get; set; } = true;
 
     /// <summary>
+    /// Security mode: "" (Default) / SignAndEncrypt / Sign / None
+    /// </summary>
+    public string SecurityMode
+    {
+      get => m_securityMode;
+      set {
+        m_securityMode = value;
+        if (null != m_client) {
+          m_client.SecurityMode = value;
+        }
+      }
+    }
+
+    /// <summary>
     /// Default Namespace
     /// </summary>
     public string DefaultNamespace
@@ -75,9 +95,36 @@ namespace Lemoine.Cnc
     }
 
     /// <summary>
+    /// Certificate password if required
+    /// </summary>
+    public string CertificatePassword { get; set; }
+
+    /// <summary>
+    /// User name if required
+    /// </summary>
+    public string Username
+    {
+      get => m_username;
+      set {
+        m_username = value;
+        if (null != m_client) {
+          m_client.Username = value;
+        }
+      }
+    }
+
+    /// <summary>
     /// Password if required
     /// </summary>
-    public String Password { get; set; }
+    public string Password {
+      get => m_password;
+      set {
+        m_password = value;
+        if (null != m_client) {
+          m_client.Password = value;
+        }
+      }
+    }
 
     /// <summary>
     /// Renew the certificate ?
@@ -190,7 +237,7 @@ namespace Lemoine.Cnc
     ApplicationInstance GetApplication (ApplicationConfiguration configuration) => new ApplicationInstance {
       ApplicationName = "Pomamo",
       ApplicationType = ApplicationType.Client,
-      CertificatePasswordProvider = new CertificatePasswordProvider (this.Password),
+      CertificatePasswordProvider = new CertificatePasswordProvider (this.CertificatePassword),
       ApplicationConfiguration = configuration,
     };
 
@@ -250,7 +297,16 @@ namespace Lemoine.Cnc
         if (log.IsDebugEnabled) {
           log.Debug ("Start: about to create the OPC UA Client");
         }
-        m_client = new UAClient (this.CncAcquisitionId, m_configuration);//, Namespace, Username, Password, Encryption, SecurityMode);
+        try {
+          m_client = new UAClient (this.CncAcquisitionId, m_configuration);//, Namespace, Username, Password, Encryption, SecurityMode);
+          m_client.SecurityMode = this.SecurityMode;
+          m_client.Username = this.Username;
+          m_client.Password = this.Password;
+        }
+        catch (Exception ex) {
+          log.Error ($"Start: creating the new UA Client for CncAcquisitionid={CncAcquisitionId} failed", ex);
+          throw;
+        }
       }
 
       // Connection to the machine (if needed)
@@ -264,17 +320,13 @@ namespace Lemoine.Cnc
         log.Error ("Start: Connect returned an exception", ex);
         ConnectionError = true;
         CheckDisconnectionFromException ("Start.Connect", ex);
-        return false;
       }
-
       if (this.ConnectionError) {
-        log.Error ($"Start: ConnectionError => return false");
-        return false;
+        log.Error ($"Start: ConnectionError => return {!m_listParameters.Any () && !m_queryReady}");
+        return !m_listParameters.Any () && !m_queryReady;
       }
       else if (log.IsDebugEnabled) {
-        if (log.IsDebugEnabled) {
-          log.Debug ("Start: connect is successful");
-        }
+        log.Debug ("Start: connect is successful");
       }
 
       if (this.BrowseAndLog) {
@@ -291,7 +343,7 @@ namespace Lemoine.Cnc
         }
       }
 
-      if (!m_listParameters.Any () && !m_queryReady) {
+      if (m_listParameters.Any () && !m_queryReady) {
         log.Info ($"Start: listParameters is already not empty => try to prepare the query now");
         PrepareQuery ();
       }
@@ -422,7 +474,7 @@ namespace Lemoine.Cnc
     /// </summary>
     /// <param name="parameter"></param>
     /// <returns></returns>
-    public bool GetBool (String parameter)
+    public bool GetBool (string parameter)
     {
       var result = Get (parameter);
       return m_converter.ConvertAuto<bool> (result);
@@ -590,11 +642,6 @@ namespace Lemoine.Cnc
     /// <returns></returns>
     public object Get (string parameter)
     {
-      if (m_client is null) {
-        log.Info ($"Get: the library is not initialized => give up for {parameter}");
-        throw new Exception ("Library not initialized");
-      }
-
       if (!m_queryReady) {
         if (!m_listParameters.Contains (parameter)) {
           m_listParameters.Add (parameter);
@@ -604,7 +651,12 @@ namespace Lemoine.Cnc
         throw new Exception ($"Query not ready yet");
       }
 
-      if (ConnectionError) {
+      if (m_client is null) {
+        log.Info ($"Get: the library is not initialized => give up for {parameter}");
+        throw new Exception ("Library not initialized");
+      }
+
+      if (this.ConnectionError) {
         log.Info ($"Get: connection error => give up for {parameter}");
         throw new Exception ("Connection error");
       }

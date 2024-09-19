@@ -77,6 +77,11 @@ namespace Lemoine.Cnc
         return;
       }
 
+      if (0 == m_readNodes.Count) {
+        log.Error ($"ReadNodes: no node to read");
+        return;
+      }
+
       try {
         if (log.IsDebugEnabled) {
           log.Debug ($"ReadNodes: reading {m_readNodes.Count} nodes");
@@ -209,10 +214,10 @@ namespace Lemoine.Cnc
       m_parametersWithNodeId.Clear ();
 
       if (log.IsDebugEnabled) {
-        log.Debug ($"PrepareQuery: Adding {parameters.Count} parameters under monitoring...");
+        log.Debug ($"PrepareQuery: adding {parameters.Count} parameters under monitoring...");
       }
       int count = 0;
-      IList<string> allNodeIdentifiers = new List<string> ();
+      var allNodeIdentifiers = new HashSet<string> ();
       foreach (var parameter in parameters) {
         // Possibly extract indexes
         string indexes = "";
@@ -222,7 +227,7 @@ namespace Lemoine.Cnc
             indexes = parts[1];
           }
           else {
-            log.Warn ($"PrepareQuery Bad parameter {parameter}: cannot extract indexes");
+            log.Warn ($"PrepareQuery: bad parameter {parameter}, cannot extract indexes");
           }
         }
 
@@ -246,9 +251,12 @@ namespace Lemoine.Cnc
 
         // Add a ReadValueId
         if (allNodeIdentifiers.Contains (identifier)) {
-          log.Info ($"PrepareQuery: Id '{identifier}' already in the list of nodes to read");
+          log.Info ($"PrepareQuery: Id='{identifier}' already in the set of nodes to read");
         }
         else {
+          if (log.IsDebugEnabled) {
+            log.Debug ($"PrepareQuery: add id={identifier}");
+          }
           allNodeIdentifiers.Add (identifier);
           m_readNodes.Add (readValueId);
         }
@@ -337,12 +345,18 @@ namespace Lemoine.Cnc
         // Remove the possible array index (otherwise there is an error)
         nodeId = nodeId.Split ('[')[0];
         var node = session.ReadNode (nodeId);
-        if (node == null) {
+        if (node is null) {
+          log.Warn ($"TestNodeId: {nodeId} not found");
           return false; // Node id not found
         }
       }
+      catch (ServiceResultException ex) {
+        // Message could be BadUserAccessDenied / BadNodeIdUnknown
+        log.Error ($"TestNodeId: OPC UA Service exception for {nodeId}: {ex.Message}", ex);
+        return false;
+      }
       catch (Exception ex) {
-        log.Error ($"TestNodeId: exception for {nodeId}", ex);
+        log.Error ($"TestNodeId: exception for {nodeId}: {ex.Message}", ex);
         return false;
       }
       return true;
@@ -470,7 +484,7 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.Error ($"LogResult: log error", ex);
+        log.Error ($"LogResult: log error, {ex.Message}", ex);
       }
     }
 
