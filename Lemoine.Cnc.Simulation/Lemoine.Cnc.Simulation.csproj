@@ -27,7 +27,6 @@
     <None Include="CncAlarm\ScenarioSample.txt" CopyToOutputDirectory="Never" />
     <None Include="CncValue\ScenarioSample.txt" CopyToOutputDirectory="Never" />
     <None Include="ToolLife\ScenarioSample.txt" CopyToOutputDirectory="Never" />
-    <None Include="ConfigurationSample.xml" CopyToOutputDirectory="Never" />
   </ItemGroup>
   
 </Project>

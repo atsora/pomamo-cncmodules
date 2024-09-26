@@ -502,11 +502,11 @@ namespace Lemoine.Cnc
     /// </summary>
     /// <param name="param">ListString (first character is the separator)</param>
     /// <returns></returns>
-    public IDictionary<string, double> GetCncVariableSet (string param)
+    public IDictionary<string, object> GetCncVariableSet (string param)
     {
       var macroVariableNumbers = Lemoine.Collections.EnumerableString.ParseListString (param)
         .Distinct ();
-      var result = new Dictionary<string, double> ();
+      var result = new Dictionary<string, object> ();
       foreach (var macroVariableNumber in macroVariableNumbers) {
         try {
           result[macroVariableNumber] = GetDouble ($"Q600 {macroVariableNumber}");
