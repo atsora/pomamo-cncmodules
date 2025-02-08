@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2025 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -14,9 +15,7 @@ namespace Lemoine.Cnc
   /// </summary>
   public class ScenarioReaderCncAlarm : IScenarioReader
   {
-    #region Members
     readonly IDictionary<int, CncAlarm> m_currentCncAlarms = new Dictionary<int, CncAlarm> ();
-    #endregion // Members
 
     static readonly Regex CHECK_CREATE = new Regex ("^{ ?(.*) ?; ?(.*) ?; ?(.*) ?; ?(.*) ?; ?(.*) ?} ?(.*)$");
 
@@ -31,7 +30,6 @@ namespace Lemoine.Cnc
       log = l;
     }
 
-    #region Get methods
     /// <summary>
     /// Get cnc alarms
     /// </summary>
@@ -40,9 +38,7 @@ namespace Lemoine.Cnc
     {
       return m_currentCncAlarms.Values;
     }
-    #endregion // Get methods
 
-    #region Process methods
     /// <summary>
     /// <see cref="IScenarioReader"/>
     /// </summary>
@@ -124,7 +120,8 @@ namespace Lemoine.Cnc
       try {
         properties = ParseProperties (txt);
       }
-      catch {
+      catch (Exception ex) {
+        log.Error ($"UpdateAlarm: ParseProperties failed", ex);
         return false;
       }
       if (properties == null) {
@@ -157,6 +154,7 @@ namespace Lemoine.Cnc
         // Extract the key and the value
         var split2 = elt.Split ('=');
         if (split2.Length != 2) {
+          log.Error ($"ParseProperties: wrong property {elt}");
           throw new Exception ("Wrong property [" + elt + "]");
         }
 
@@ -165,10 +163,12 @@ namespace Lemoine.Cnc
 
         // Check that the key is valid
         if (String.IsNullOrEmpty (key)) {
+          log.Error ($"ParseProperties: wrong key {elt} in property");
           throw new Exception ("Wrong key in property [" + elt + "]");
         }
 
         if (properties.ContainsKey (key)) {
+          log.Error ($"ParseProperties: key {key} is duplicated");
           throw new Exception ("Duplicated key [" + key + "]");
         }
 
@@ -178,7 +178,5 @@ namespace Lemoine.Cnc
 
       return properties;
     }
-
-    #endregion // Process methods
   }
 }
