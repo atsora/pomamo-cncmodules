@@ -30,6 +30,11 @@ namespace Lemoine.Cnc
   public enum PlcType
   {
     /// <summary>
+    /// Use advanced properties, no PLC type is set
+    /// </summary>
+    NOPLCTYPE,
+
+    /// <summary>
     /// Control Logix-class PLC
     /// </summary>
     CONTROLLOGIX,
@@ -86,16 +91,13 @@ namespace Lemoine.Cnc
   {
     static readonly int TIMEOUT_MS_DEFAULT = 500;
 
-    #region Members
     readonly TagManager m_tagManager = new TagManager ();
     bool m_acquisitionError = false;
     int m_operationErrors = 0;
     int m_invalidTags = 0;
     int m_successfulReadAttempts = 0; // Note: it can be approximative
     readonly IDictionary<string, object> m_cache = new Dictionary<string, object> ();
-    #endregion
 
-    #region Getters / Setters
     /// <summary>
     /// Gateway (previously IPAddress)
     /// </summary>
@@ -132,6 +134,7 @@ namespace Lemoine.Cnc
     /// <item>micro800</item>
     /// <item>micrologix</item>
     /// <item>omron-njnx</item>
+    /// <item>noplctype to use advanced properties</item>
     /// 
     /// Previously Cpu
     /// </summary>
@@ -183,6 +186,58 @@ namespace Lemoine.Cnc
       }
     }
 
+    #region Advanced parameters
+    /// <summary>
+    /// Advanced class property
+    /// </summary>
+    public string Class
+    {
+      get {
+        return m_tagManager.Class;
+      }
+      set {
+        m_tagManager.Class = value;
+      }
+    }
+
+    /// <summary>
+    /// Advanced instance property
+    /// </summary>
+    public string Instance {
+      get {
+        return m_tagManager.Instance;
+      }
+      set {
+        m_tagManager.Instance = value;
+      }
+    }
+
+    /// <summary>
+    /// Advanced attribute property
+    /// </summary>
+    public string Attribute {
+      get {
+        return m_tagManager.Attribute;
+      }
+      set {
+        m_tagManager.Attribute = value;
+      }
+    }
+
+    /// <summary>
+    /// Set a raw key prefix
+    /// </summary>
+    public string RawKeyPrefix
+    {
+      get {
+        return m_tagManager.RawKeyPrefix;
+      }
+      set {
+        m_tagManager.RawKeyPrefix = value;
+      }
+    }
+    #endregion // Advanced parameters
+
     /// <summary>
     /// Maximum time for reading or writing a node, in ms
     /// Default is 500 ms
@@ -228,9 +283,7 @@ namespace Lemoine.Cnc
     /// Return true if no data could be read
     /// </summary>
     public bool NoDataAcquired => 0 == m_successfulReadAttempts;
-    #endregion
 
-    #region Constructors, destructor
     /// <summary>
     /// Default constructor
     /// </summary>
@@ -248,9 +301,7 @@ namespace Lemoine.Cnc
 
       GC.SuppressFinalize (this);
     }
-    #endregion // Constructor, destructor
 
-    #region Methods
     /// <summary>
     /// Start method, start of the acquisition
     /// </summary>
@@ -448,6 +499,5 @@ namespace Lemoine.Cnc
         log.Error ($"ProcessException: not an ErrorCodeException, {ex.Message}", ex);
       }
     }
-    #endregion // Methods
   }
 }

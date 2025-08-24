@@ -17,7 +17,6 @@ namespace Lemoine.Cnc
     static readonly TimeSpan STATUS_OK_TIMEOUT_DEFAULT = TimeSpan.FromMilliseconds (300);
     static readonly int PENDING_TIME_OUT_DEFAULT = 3 * 60; // 3 minutes
 
-    #region Members
     readonly IntPtr m_tag;
     readonly string m_name;
     readonly string m_key;
@@ -27,9 +26,7 @@ namespace Lemoine.Cnc
     readonly ILog log;
     TimeSpan m_statusOkTimeout = STATUS_OK_TIMEOUT_DEFAULT;
     DateTime? m_pendingStartDateTime = null;
-    #endregion // Members
 
-    #region Getters / Setters
     /// <summary>
     /// Read the data only once (keep it in cache)
     /// 
@@ -57,7 +54,6 @@ namespace Lemoine.Cnc
     /// Pending time out in seconds before self-destruction
     /// </summary>
     public int PendingTimeOut { get; set; } = PENDING_TIME_OUT_DEFAULT;
-    #endregion Getters / Setters
 
     #region Constructors, destructor
     /// <summary>

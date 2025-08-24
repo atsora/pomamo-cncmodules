@@ -469,7 +469,7 @@ namespace Lemoine.Cnc
 
       T cacheValue;
       if (TryInCache<T> (param, out cacheValue)) {
-        log.InfoFormat ("GetValue: get value for {0} in cache", param);
+        log.Info ($"GetValue: get value for {param} in cache");
         return cacheValue;
       }
 
@@ -498,7 +498,7 @@ namespace Lemoine.Cnc
       try {
         object v = getValue (tag, elementNumber);
         if (log.IsDebugEnabled) {
-          log.DebugFormat ("GetValue: read {0} for param {1}", v, param);
+          log.Debug ($"GetValue: read {v} for param {param}");
         }
         ++m_successfulReadAttempts;
         return (T)v;

@@ -13,14 +13,11 @@ namespace Lemoine.Cnc
   /// </summary>
   internal sealed class TagManager : IDisposable
   {
-    #region Members
     readonly IDictionary<string, Tag> m_tags = new Dictionary<string, Tag> ();
     PlcTagDebugLevel m_debugLevel = PlcTagDebugLevel.None;
     ILog m_logger = LogManager.GetLogger (typeof (EthernetIP).FullName);
     ILog m_plcLogger = LogManager.GetLogger (typeof (EthernetIP).FullName + ".PlcTag");
-    #endregion // Members
 
-    #region Getters / Setters
     /// <summary>
     /// Type of the PLC protocol
     /// </summary>
@@ -39,9 +36,9 @@ namespace Lemoine.Cnc
     public string Gateway { get; set; }
 
     /// <summary>
-    /// CPU type, can be "LGX", "SLC" or "PLC5"
+    /// CPU type, can be "LGX", "SLC" or "PLC5" or "NoPlcType"
     /// </summary>
-    public PlcType Plc { get; set; }
+    public PlcType Plc { get; set; } = PlcType.NOPLCTYPE;
 
     /// <summary>
     /// AB: Required/Optional Only for PLCs with additional routing
@@ -80,6 +77,31 @@ namespace Lemoine.Cnc
       }
     }
 
+    #region Advanced parameters
+    /// <summary>
+    /// Advanced class property
+    /// </summary>
+    public string Class { get; set; } = "";
+
+    /// <summary>
+    /// Advanced instance property
+    /// </summary>
+    public string Instance { get; set; } = "";
+
+    /// <summary>
+    /// Advanced attribute property
+    /// </summary>
+    public string Attribute { get; set; } = "";
+    #endregion // Advanced parameters
+
+    #region Raw key (advanced)
+    /// <summary>
+    /// Raw key prefix: if set, omit the other properties
+    /// </summary>
+
+    public string RawKeyPrefix { get; set; } = "";
+    #endregion // Raw key (advanced)
+
     /// <summary>
     /// Maximum time for reading or writing a node, in ms
     /// Default is 500 ms
@@ -97,7 +119,6 @@ namespace Lemoine.Cnc
         m_plcLogger = LogManager.GetLogger (m_logger.Name + ".PlcTag");
       }
     }
-    #endregion // Getters / Setters
 
     /// <summary>
     /// Constructor
@@ -159,7 +180,6 @@ namespace Lemoine.Cnc
       }
     }
 
-    #region Methods
     /// <summary>
     /// Start of a new acquisition
     /// </summary>
@@ -222,17 +242,44 @@ namespace Lemoine.Cnc
         }
       }
 
-      var key = $"protocol={this.Protocol.ToString ().ToLowerInvariant ()}&gateway={this.Gateway}";
+      string key;
+      if (!string.IsNullOrEmpty (this.RawKeyPrefix)) {
+        key = this.RawKeyPrefix;
+      }
+      else {
+        key = $"protocol={this.Protocol.ToString ().ToLowerInvariant ()}&gateway={this.Gateway}";
+      }
       if (!string.IsNullOrEmpty (this.Path)) {
         key += "&path=" + this.Path;
       }
 
-      var plcString = this.Plc.ToString ().Replace ('_', '-').ToLowerInvariant ();
-      key += $"&plc={plcString}";
+      if (!this.Plc.Equals (PlcType.NOPLCTYPE)) {
+        var plcString = this.Plc.ToString ().Replace ('_', '-').ToLowerInvariant ();
+        key += $"&plc={plcString}";
+      }
+      if (1 < elementCount) {
+        key += $"&elem_count={elementCount}";
+      }
       if (1 <= elementSize) {
         key += $"&elem_size={elementSize}";
       }
-      key += $"&name={tagName}";
+      if (!string.IsNullOrEmpty (tagName)) {
+        key += $"&name={tagName}";
+      }
+
+      if (!string.IsNullOrEmpty (this.Class) || !string.IsNullOrEmpty (this.Instance) || !string.IsNullOrEmpty (this.Attribute)) {
+        key += $"&cpu=plc";
+      }
+      if (!string.IsNullOrEmpty (this.Class)) {
+        key += $"&class={this.Class}";
+      }
+      if (!string.IsNullOrEmpty (this.Instance)) {
+        key += $"&instance={this.Instance}";
+      }
+      if (!string.IsNullOrEmpty (this.Attribute)) {
+        key += $"&attribute={this.Attribute}";
+      }
+      
       if (debugLevel > 0) {
         key += $"&debug={debugLevel}";
       }
@@ -268,7 +315,5 @@ namespace Lemoine.Cnc
       var tag = GetTag (tagName, elementCount, elementSize, type);
       tag.ReadOnce = true;
     }
-
-    #endregion // Methods
   }
 }
