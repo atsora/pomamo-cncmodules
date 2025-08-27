@@ -49,7 +49,6 @@ namespace Lemoine.Cnc
     /// </summary>
     static readonly string DEFAULT_SPECIFIC_LINE_DATA_SEPARATORS = "/";
     
-    #region Members
     string m_serialData = ""; // Data in dataSerialPort to get a full line
     ReaderWriterLock m_dataLock = new ReaderWriterLock ();
     Hashtable m_data = new Hashtable ();
@@ -65,7 +64,6 @@ namespace Lemoine.Cnc
     
     bool m_specificLine = false;
     bool m_error = false;
-    #endregion
 
     #region Getters / Setters
     /// <summary>
@@ -320,10 +318,7 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.ErrorFormat ("ReadSerialData: " +
-                         "exception {0}, " +
-                         "=> reset the stored values",
-                         ex);
+        log.Error ("ReadSerialData: exception, => reset the stored values", ex);
         m_error = true;
         using (var holder = new WriteLockHolder (m_dataLock)) {
           m_data.Clear ();
