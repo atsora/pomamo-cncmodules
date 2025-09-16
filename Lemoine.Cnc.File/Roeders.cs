@@ -1,34 +1,29 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2025 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-using System;
-
 using Lemoine.Core.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Lemoine.Cnc
 {
   /// <summary>
   /// Röders acquisition: override FileXml to consider the /erp/data/time node
   /// </summary>
-  public class Roeders: FileXml
+  public sealed class Roeders: FileXml
   {
-    #region Members
     TimeSpan m_timeLag;
     bool m_timeLagInitialized = false;
     TimeSpan m_timeLagShift;
-    #endregion // Members
 
-    #region Getters / Setters
     /// <summary>
     /// Last write age
     /// </summary>
-    public override TimeSpan LastWriteAge {
-      get { return m_timeLagShift; }
-    }
-    #endregion // Getters / Setters
+    public override TimeSpan LastWriteAge => m_timeLagShift;
 
-    #region Constructors
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -36,9 +31,7 @@ namespace Lemoine.Cnc
       : base ("Lemoine.Cnc.In.Roeders")
     {
     }
-    #endregion // Constructors
 
-    #region Methods
     /// <summary>
     /// Start method
     /// </summary>
@@ -46,8 +39,7 @@ namespace Lemoine.Cnc
     public override bool Start ()
     {
       if (!base.Start ()) {
-        log.ErrorFormat ("Start: " +
-                         "FileXml.Start returned false");
+        log.Error ("Start: FileXml.Start returned false");
         return false;
       }
 
@@ -71,15 +63,52 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.ErrorFormat ("Start: " +
-                         "error while processing the time lag " +
-                         "but dismiss it " +
-                         "{0}",
-                         ex);
+        log.Error ($"Start: error while processing the time lag but dismiss it", ex);
       }
       
       return true;
     }
-    #endregion // Methods
+
+    /// <summary>
+    /// Get a set of cnc variables.
+    /// </summary>
+    /// <param name="param">ListString (first character is the separator)</param>
+    /// <returns></returns>
+    public IDictionary<string, object> GetCncVariableSet (string param)
+    {
+      var cncVariables = Lemoine.Collections.EnumerableString.ParseListString (param)
+        .Distinct ();
+      var result = new Dictionary<string, object> ();
+      foreach (var cncVariable in cncVariables) {
+        try {
+          result[cncVariable] = GetString ($"/erp/data/user/{cncVariable}");
+        }
+        catch (Exception ex) {
+          log.Error ($"GetCncVariableSet: exception for variable {cncVariable}", ex);
+        }
+      }
+      return result;
+    }
+
+    /// <summary>
+    /// Get a set of cnc variables in double format
+    /// </summary>
+    /// <param name="param">ListString (first character is the separator)</param>
+    /// <returns></returns>
+    public IDictionary<string, object> GetCncVariableDoubleSet (string param)
+    {
+      var cncVariables = Lemoine.Collections.EnumerableString.ParseListString (param)
+        .Distinct ();
+      var result = new Dictionary<string, object> ();
+      foreach (var cncVariable in cncVariables) {
+        try {
+          result[cncVariable] = GetDouble ($"/erp/data/user/{cncVariable}");
+        }
+        catch (Exception ex) {
+          log.Error ($"GetCncVariableDoubleSet: exception for variable {cncVariable}", ex);
+        }
+      }
+      return result;
+    }
   }
 }
