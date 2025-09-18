@@ -24,7 +24,6 @@ namespace Lemoine.Cnc
     static readonly string DEFAULT_BLOCK_PATH = "//Controller//DataItems/DataItem[@type='BLOCK']"; // Full XPath is //Controller/Components/Path/DataItems
     static readonly string DEFAULT_BLOCK_XPATH = "//m:Block";
 
-    #region Members
     Random m_random = new Random ();
     Hashtable m_xmlns = new Hashtable ();
     string m_mtconnectStreamsPrefix = DEFAULT_MTCONNECTSTREAMS_NAMESPACE_PREFIX;
@@ -34,9 +33,7 @@ namespace Lemoine.Cnc
     bool m_error = true;
     XmlNamespaceManager m_streamsNs = null;
     XPathNavigator m_streamsNavigator;
-    #endregion // Members
 
-    #region Getters / Setters
     /// <summary>
     /// MTConnect URL of the machine
     /// 
@@ -124,13 +121,8 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Error while getting the XML ?
     /// </summary>
-    public bool Error
-    {
-      get { return m_error; }
-    }
-    #endregion // Getters / Setters
+    public bool Error => m_error;
 
-    #region Constructors / Destructor
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -146,9 +138,7 @@ namespace Lemoine.Cnc
       // Do nothing special here
       GC.SuppressFinalize (this);
     }
-    #endregion // Constructors / Destructor
 
-    #region Methods
     /// <summary>
     /// Start method
     /// </summary>
@@ -461,6 +451,5 @@ namespace Lemoine.Cnc
 
       return program;
     }
-    #endregion // Methods
   }
 }
