@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2023 Atsora Solutions
+﻿// Copyright (c) 2023-2025 Atsora Solutions
 //
 // SPDX-License-Identifier: MIT
 

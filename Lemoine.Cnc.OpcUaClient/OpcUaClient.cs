@@ -1,5 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
-// Copyright (C) 2023 Atsora Solutions
+// Copyright (C) 2023-2025 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0
 
@@ -47,6 +47,9 @@ namespace Lemoine.Cnc
         log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.{value}");
         if (null != m_client) {
           m_client.CncAcquisitionId = value;
+        }
+        if (null != m_nodeManager) { 
+          m_nodeManager.CncAcquisitionId = value;
         }
       }
     }

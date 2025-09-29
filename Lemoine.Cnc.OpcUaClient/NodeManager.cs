@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2025 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-only
 // SPDX-License-Identifier: MIT
@@ -50,18 +51,32 @@ namespace Lemoine.Cnc
   /// </summary>
   sealed class NodeManager
   {
-    readonly ILog log = LogManager.GetLogger (typeof (NodeManager).FullName);
+    ILog log = LogManager.GetLogger (typeof (NodeManager).FullName);
 
     readonly ReadValueIdCollection m_readNodes = new ReadValueIdCollection ();
     readonly IDictionary<string, string> m_parametersWithNodeId = new Dictionary<string, string> ();
     readonly IDictionary<string, object> m_resultsByNodeId = new ConcurrentDictionary<string, object> ();
+    int m_cncAcquisitionId = 0;
 
     /// <summary>
     /// Constructor
     /// </summary>
     public NodeManager (int cncAcquisitionId)
     {
-      log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.{cncAcquisitionId}.Client");
+      m_cncAcquisitionId = cncAcquisitionId;
+      log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.{cncAcquisitionId}.NodeManager");
+    }
+
+    /// <summary>
+    /// Set the cnc acquisition id
+    /// </summary>
+    /// <param name="cncAcquisitionId"></param>
+    public int CncAcquisitionId {
+      get => m_cncAcquisitionId;
+      set { 
+        m_cncAcquisitionId = value;
+        log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.{m_cncAcquisitionId}.NodeManager");
+      }
     }
 
     /// <summary>
