@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Lemoine.Cnc
@@ -22,6 +23,8 @@ namespace Lemoine.Cnc
   public sealed class OpcUaClient
     : Pomamo.CncModule.ICncModule, IDisposable
   {
+    static readonly int INITIAL_TIMEOUT_SLEEP = 1000; // ms
+
     ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.OpcUaClient");
     readonly Lemoine.Cnc.OpcUaConverter m_converter = new Lemoine.Cnc.OpcUaConverter ();
     int m_cncAcquisitionId = 0;
@@ -35,6 +38,7 @@ namespace Lemoine.Cnc
     UAClient m_client = null;
     string m_defaultNamespace;
     int m_defaultNamespaceIndex = -1;
+    int m_timeoutSleep = 1000; // ms
 
     /// <summary>
     /// <see cref="Pomamo.CncModule.ICncModule"/>
@@ -48,7 +52,7 @@ namespace Lemoine.Cnc
         if (null != m_client) {
           m_client.CncAcquisitionId = value;
         }
-        if (null != m_nodeManager) { 
+        if (null != m_nodeManager) {
           m_nodeManager.CncAcquisitionId = value;
         }
       }
@@ -119,7 +123,8 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Password if required
     /// </summary>
-    public string Password {
+    public string Password
+    {
       get => m_password;
       set {
         m_password = value;
@@ -133,6 +138,11 @@ namespace Lemoine.Cnc
     /// Renew the certificate ?
     /// </summary>
     public bool RenewCertificate { get; set; } = true;
+
+    /// <summary>
+    /// Connection timeout in seconds
+    /// </summary>
+    public double TimeoutSeconds { get; set; } = 10.0;
 
     /// <summary>
     /// Set it to true if you want every BrowseName to be written in the logs
@@ -313,16 +323,34 @@ namespace Lemoine.Cnc
       }
 
       // Connection to the machine (if needed)
-      try {
-        if (log.IsDebugEnabled) {
-          log.Debug ("Start: about to connect");
+      var timeout = TimeSpan.FromSeconds (this.TimeoutSeconds);
+      using (var timeoutCts = new CancellationTokenSource (timeout)) {
+        try {
+          if (log.IsDebugEnabled) {
+            log.Debug ("Start: about to connect");
+          }
+          var connectTask = m_client.ConnectAsync (this.ServerUrl, useSecurity: this.UseSecurity);
+          var completed = await Task.WhenAny (connectTask, Task.Delay (-1, timeoutCts.Token));
+          if (completed == connectTask) {
+            ConnectionError = !connectTask.Result;
+          }
+          else {
+            log.Error ($"StartAsync: timeout={timeout} reached");
+            throw new TimeoutException ("OPC UA connection timeout");
+          }
         }
-        ConnectionError = !await m_client.ConnectAsync (this.ServerUrl, useSecurity: this.UseSecurity);
-      }
-      catch (Exception ex) {
-        log.Error ("Start: Connect returned an exception", ex);
-        ConnectionError = true;
-        CheckDisconnectionFromException ("Start.Connect", ex);
+        catch (TimeoutException ex) {
+          log.Error ($"StartAsync: timeout exception", ex);
+          ConnectionError = true;
+          Disconnect ();
+          await Task.Delay (m_timeoutSleep);
+          m_timeoutSleep *= 2;
+        }
+        catch (Exception ex) {
+          log.Error ("Start: Connect returned an exception", ex);
+          ConnectionError = true;
+          CheckDisconnectionFromException ("Start.Connect", ex);
+        }
       }
       if (this.ConnectionError) {
         log.Error ($"Start: ConnectionError => return {!m_listParameters.Any () && !m_queryReady}");
@@ -330,6 +358,7 @@ namespace Lemoine.Cnc
       }
       else if (log.IsDebugEnabled) {
         log.Debug ("Start: connect is successful");
+        m_timeoutSleep = INITIAL_TIMEOUT_SLEEP;
       }
 
       if (this.BrowseAndLog) {
@@ -373,6 +402,19 @@ namespace Lemoine.Cnc
           }
           return false;
         }
+      }
+    }
+
+    void Disconnect ()
+    {
+      try {
+        m_client?.Disconnect ();
+      }
+      catch (Exception ex) {
+        log.Error ("Disconnect: couldn't disconnect", ex);
+      }
+      finally {
+        m_client = null;
       }
     }
 
@@ -455,15 +497,7 @@ namespace Lemoine.Cnc
           log.Info ($"CheckDisconnectionFromException: disconnect since {ex.Message}", ex);
         }
         ConnectionError = true;
-        try {
-          m_client.Disconnect ();
-        }
-        catch (Exception ex1) {
-          log.Error ("CheckDisconnectionFromException: couldn't disconnect", ex1);
-        }
-        finally {
-          m_client = null;
-        }
+        Disconnect ();
         return false;
       }
       else {
