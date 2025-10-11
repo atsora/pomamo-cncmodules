@@ -177,7 +177,23 @@ namespace Lemoine.Cnc
             log.Debug ($"ConnectAsync: username={this.Username} password={this.Password}");
           }
 
-          // Create the session
+          // With this explicit overload call:
+          // For the next version of OPC UA:
+          /*
+          var session = await Opc.Ua.Client.Session.CreateAsync(
+            (ISessionInstantiator)null,
+            m_configuration,
+            (ITransportWaitingConnection)null,
+            endpoint,
+            false,
+            false,
+            m_configuration.ApplicationName,
+            SessionLifeTime,
+            userIdentity,
+            (IList<string>)null,
+            default
+          );
+          */
           var session = await Opc.Ua.Client.Session.Create (
               m_configuration,
               endpoint,
@@ -218,27 +234,27 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Disconnects the session.
     /// </summary>
-    public void Disconnect ()
+    public async Task DisconnectAsync ()
     {
       try {
         if (m_session != null) {
           if (log.IsDebugEnabled) {
-            log.Debug ("Disconnect");
+            log.Debug ("DisconnectAsync");
           }
 
-          m_session.Close ();
+          await m_session.CloseAsync ();
           m_session.Dispose ();
           m_session = null;
 
           // Log Session Disconnected event
-          log.Info ("Disconnect: session disconnected");
+          log.Info ("DisconnectAsync: session disconnected");
         }
         else {
-          log.Debug ("Disconnect: session not created");
+          log.Debug ("DisconnectAsync: session not created");
         }
       }
       catch (Exception ex) {
-        log.Error ("Disconnect: exception", ex);
+        log.Error ("DisconnectAsync: exception", ex);
       }
     }
 
@@ -310,11 +326,11 @@ namespace Lemoine.Cnc
     {
       ServiceResult error = e.Error;
       if (error.StatusCode == StatusCodes.BadCertificateUntrusted && AutoAccept) {
-        log.Warn ($"Untrusted Certificate accepted. Subject={e.Certificate.Subject}");
+        log.Warn ($"CertificateValidation: untrusted Certificate accepted. Subject={e.Certificate.Subject}");
         e.Accept = true;
       }
       else {
-        log.Error ($"Untrusted Certificate rejected. Subject={e.Certificate.Subject}");
+        log.Error ($"CertificateValidation: untrusted Certificate rejected. Subject={e.Certificate.Subject}");
       }
     }
   }

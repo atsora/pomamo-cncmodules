@@ -5,6 +5,7 @@
 
 using log4net;
 using Opc.Ua;
+using Opc.Ua.Client;
 using Opc.Ua.Configuration;
 using System;
 using System.Collections;
@@ -14,6 +15,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
 
 namespace Lemoine.Cnc
 {
@@ -38,7 +40,11 @@ namespace Lemoine.Cnc
     UAClient m_client = null;
     string m_defaultNamespace;
     int m_defaultNamespaceIndex = -1;
+    string m_cncAlarmNamespace = "Sinumerik";
+    int m_cncAlarmNamespaceIndex = 2;
     int m_timeoutSleep = 1000; // ms
+    Subscription m_eventSubscription = null;
+    IList<CncAlarm> m_cncAlarms = new List<CncAlarm> ();
 
     /// <summary>
     /// <see cref="Pomamo.CncModule.ICncModule"/>
@@ -100,6 +106,28 @@ namespace Lemoine.Cnc
         m_defaultNamespaceIndex = -1;
       }
     }
+
+    /// <summary>
+    /// Subscribe to CNC Alarms (Sinumerik)
+    /// </summary>
+    public bool CncAlarmSubscription { get; set; } = false;
+
+    /// <summary>
+    /// Cnc alarm namespace (default: Sinumerik, ns=2)
+    /// </summary>
+    public string CncAlarmNamespace
+    {
+      get => m_cncAlarmNamespace;
+      set {
+        m_cncAlarmNamespace = value;
+        m_cncAlarmNamespaceIndex = -1;
+      }
+    }
+
+    /// <summary>
+    /// Cnc alarms
+    /// </summary>
+    public IList<CncAlarm> CncAlarms => m_cncAlarms;
 
     /// <summary>
     /// Certificate password if required
@@ -165,6 +193,16 @@ namespace Lemoine.Cnc
       m_nodeManager = new NodeManager (this.CncAcquisitionId);
     }
 
+    public async ValueTask DisposeAsync ()
+    {
+      if (m_client != null) {
+        log.Info ($"DisposeAsync: disconnect");
+        await m_client.DisconnectAsync ();
+      }
+
+      GC.SuppressFinalize (this);
+    }
+
     /// <summary>
     /// <see cref="IDisposable.Dispose" />
     /// </summary>
@@ -172,7 +210,7 @@ namespace Lemoine.Cnc
     {
       if (m_client != null) {
         log.Info ($"Dispose: disconnect");
-        m_client.Disconnect ();
+        m_client.DisconnectAsync ().RunSynchronously ();
       }
 
       GC.SuppressFinalize (this);
@@ -266,41 +304,41 @@ namespace Lemoine.Cnc
     async Task<bool> StartAsync ()
     {
       if (log.IsDebugEnabled) {
-        log.Debug ("Start");
+        log.Debug ("StartAsync");
       }
 
       // Initialize the library the first time
       if (m_configuration is null) {
-        log.Info ("Start: Initializing the OPC UA configuration");
+        log.Info ("StartAsync: Initializing the OPC UA configuration");
         var configuration = GetConfiguration ();
         var application = GetApplication (configuration);
 
         if (this.RenewCertificate) {
           if (log.IsDebugEnabled) {
-            log.Debug ("Start: about to renew the certificate");
+            log.Debug ("StartAsync: about to renew the certificate");
           }
           try {
             await application.DeleteApplicationInstanceCertificate ().ConfigureAwait (false);
           }
           catch (Exception ex) {
-            log.Error ($"Start: DeleteApplicationInstanceCertificate failed with an exception, but continue", ex);
+            log.Error ($"StartAsync: DeleteApplicationInstanceCertificate failed with an exception, but continue", ex);
           }
         }
 
         try {
           if (log.IsDebugEnabled) {
-            log.Debug ("Start: about to check the certificate");
+            log.Debug ("StartAsync: about to check the certificate");
           }
-          bool certificateValidation = await application.CheckApplicationInstanceCertificate (false, minimumKeySize: 0).ConfigureAwait (false);
+          bool certificateValidation = await application.CheckApplicationInstanceCertificates (false).ConfigureAwait (false);
           if (!certificateValidation) {
-            log.Error ($"Start: couldn't validate the certificate");
+            log.Error ($"StartAsync: couldn't validate the certificate");
           }
           else if (log.IsDebugEnabled) {
-            log.Debug ($"Start: certificate is ok");
+            log.Debug ($"StartAsync: certificate is ok");
           }
         }
         catch (Exception ex) {
-          log.Error ($"Start: CheckApplicationInstanceCertificate failed with an exception, but continue", ex);
+          log.Error ($"StartAsync: CheckApplicationInstanceCertificate failed with an exception, but continue", ex);
         }
 
         m_configuration = configuration;
@@ -308,7 +346,7 @@ namespace Lemoine.Cnc
 
       if (m_client is null) {
         if (log.IsDebugEnabled) {
-          log.Debug ("Start: about to create the OPC UA Client");
+          log.Debug ("StartAsync: about to create the OPC UA Client");
         }
         try {
           m_client = new UAClient (this.CncAcquisitionId, m_configuration);//, Namespace, Username, Password, Encryption, SecurityMode);
@@ -317,7 +355,7 @@ namespace Lemoine.Cnc
           m_client.Password = this.Password;
         }
         catch (Exception ex) {
-          log.Error ($"Start: creating the new UA Client for CncAcquisitionid={CncAcquisitionId} failed", ex);
+          log.Error ($"StartAsync: creating the new UA Client for CncAcquisitionid={CncAcquisitionId} failed", ex);
           throw;
         }
       }
@@ -327,7 +365,7 @@ namespace Lemoine.Cnc
       using (var timeoutCts = new CancellationTokenSource (timeout)) {
         try {
           if (log.IsDebugEnabled) {
-            log.Debug ("Start: about to connect");
+            log.Debug ("StartAsync: about to connect");
           }
           var connectTask = m_client.ConnectAsync (this.ServerUrl, useSecurity: this.UseSecurity);
           var completed = await Task.WhenAny (connectTask, Task.Delay (-1, timeoutCts.Token));
@@ -342,76 +380,98 @@ namespace Lemoine.Cnc
         catch (TimeoutException ex) {
           log.Error ($"StartAsync: timeout exception", ex);
           ConnectionError = true;
-          Disconnect ();
+          await DisconnectAsync ();
           await Task.Delay (m_timeoutSleep);
           m_timeoutSleep *= 2;
         }
         catch (Exception ex) {
-          log.Error ("Start: Connect returned an exception", ex);
+          log.Error ("StartAsync: Connect returned an exception", ex);
           ConnectionError = true;
-          CheckDisconnectionFromException ("Start.Connect", ex);
+          await CheckDisconnectionFromExceptionAsync ("StartAsync.Connect", ex);
         }
       }
       if (this.ConnectionError) {
-        log.Error ($"Start: ConnectionError => return {!m_listParameters.Any () && !m_queryReady}");
+        log.Error ($"StartAsync: ConnectionError => return {!m_listParameters.Any () && !m_queryReady}");
         return !m_listParameters.Any () && !m_queryReady;
       }
       else if (log.IsDebugEnabled) {
-        log.Debug ("Start: connect is successful");
+        log.Debug ("StartAsync: connect is successful");
         m_timeoutSleep = INITIAL_TIMEOUT_SLEEP;
       }
 
+      if (this.CncAlarmSubscription) {
+        try {
+          await SubscribeToCncAlarmsAsync ();
+          log.Info ("StartAsync: CNC Alarm subscription started successfully.");
+        }
+        catch (Exception ex) {
+          log.Error ("StartAsync: Failed to subscribe to CNC Alarms", ex);
+        }
+      }
+
       if (this.BrowseAndLog) {
-        log.Debug ($"Start: browse requested");
+        log.Debug ($"StartAsync: browse requested");
         try {
           m_nodeManager.Browse (m_client.Session);
         }
         catch (Exception ex) {
-          log.Error ("Start: exception in Browse", ex);
-          if (!CheckDisconnectionFromException ("Start.Browse", ex)) {
-            log.Error ($"Start: Disconnect after Browse");
+          log.Error ("StartAsync: exception in Browse", ex);
+          if (!await CheckDisconnectionFromExceptionAsync ("Start.Browse", ex)) {
+            log.Error ($"StartAsync: Disconnect after Browse");
             return false;
           }
         }
       }
 
       if (m_listParameters.Any () && !m_queryReady) {
-        log.Info ($"Start: listParameters is already not empty => try to prepare the query now");
-        PrepareQuery ();
+        log.Info ($"StartAsync: listParameters is already not empty => try to prepare the query now");
+        await PrepareQueryAsync ();
       }
 
       // Possibly launch the query now
       if (!m_queryReady) {
         if (log.IsDebugEnabled) {
-          log.Debug ($"Start: query not ready => return true at once");
+          log.Debug ($"StartAsync: query not ready => return true at once");
         }
         return true;
       }
       else { // !AsyncQuery && m_libOpc.QueryReady
         if (log.IsDebugEnabled) {
-          log.Debug ($"Start: about to launch query since ready");
+          log.Debug ($"StartAsync: about to launch query since ready");
         }
         try {
-          m_nodeManager.ReadNodes (m_client.Session);
+          await m_nodeManager.ReadNodesAsync (m_client.Session);
           return true;
         }
         catch (Exception ex) {
-          log.Error ("Start: ReadNodes failed", ex);
-          if (!CheckDisconnectionFromException ("Start.ReadNodes", ex)) {
-            log.Error ($"Start: disconnect after ReadNodes");
+          log.Error ("StartAsync: ReadNodesAsync failed", ex);
+          if (!await CheckDisconnectionFromExceptionAsync ("StartAsync.ReadNodesAsync", ex)) {
+            log.Error ($"StartAsync: disconnect after ReadNodesAsync");
           }
           return false;
         }
       }
     }
 
-    void Disconnect ()
+    async Task DisconnectAsync (CancellationToken cancellationToken = default)
     {
       try {
-        m_client?.Disconnect ();
+        if (null != m_eventSubscription) {
+          try {
+            log.Debug ($"DisconnectAsync: deleting event subscription");
+            await m_eventSubscription.DeleteAsync (true, cancellationToken);
+          }
+          catch (Exception ex1) {
+            log.Error ($"DisconnectAsync: deleting the subscription failed", ex1);
+          }
+          finally {
+            m_eventSubscription = null;
+          }
+        }
+        await m_client?.DisconnectAsync ();
       }
       catch (Exception ex) {
-        log.Error ("Disconnect: couldn't disconnect", ex);
+        log.Error ("DisconnectAsync: couldn't disconnect", ex);
       }
       finally {
         m_client = null;
@@ -438,55 +498,202 @@ namespace Lemoine.Cnc
       }
     }
 
-    void PrepareQuery ()
+    /// <summary>
+    /// Get the Cnc alarm (default Sinumerik) namespace index
+    /// </summary>
+    /// <returns></returns>
+    ushort GetCncAlarmNamespaceIndex ()
+    {
+      if (-1 != m_cncAlarmNamespaceIndex) {
+        return (ushort)m_cncAlarmNamespaceIndex;
+      }
+      else if (!string.IsNullOrEmpty (this.CncAlarmNamespace)) {
+        try {
+          m_cncAlarmNamespaceIndex = m_nodeManager.GetNamespaceIndex (m_client.Session, this.CncAlarmNamespace);
+        }
+        catch (Exception ex) {
+          log.Error ("GetSinumerikNamespaceIndex: GetNamespaceIndex failed => return 2", ex);
+          return 2;
+        }
+        return (ushort)m_cncAlarmNamespaceIndex;
+      }
+      else {
+        return 2;
+      }
+    }
+
+    async Task PrepareQueryAsync ()
     {
       if (!m_listParameters.Any ()) {
         if (log.IsDebugEnabled) {
-          log.Debug ($"PrepareQuery: listParameters is empty => nothing to do");
+          log.Debug ($"PrepareQueryAsync: listParameters is empty => nothing to do");
         }
         return;
       }
 
       if (!m_queryReady) {
         if (log.IsDebugEnabled) {
-          log.Debug ($"PrepareQuery: prepare the query since not ready");
+          log.Debug ($"PrepareQueryAsync: prepare the query since not ready");
         }
         try {
           var defaultNamespaceIndex = GetDefaultNamespaceIndex ();
-          if (!m_nodeManager.PrepareQuery (m_client.Session, m_listParameters, defaultNamespaceIndex)) {
-            log.Error ($"PrepareQuery: PrepareQuery failed");
+          if (!await m_nodeManager.PrepareQueryAsync (m_client.Session, m_listParameters, defaultNamespaceIndex)) {
+            log.Error ($"PrepareQueryAsync: PrepareQueryAsync failed");
             return;
           }
         }
         catch (Exception ex) {
-          log.Error ("PrepareQuery: PrepareQuery returned an exception", ex);
-          CheckDisconnectionFromException ("PrepareQuery.PrepareQuery", ex);
+          log.Error ("PrepareQueryAsync: PrepareQueryAsync returned an exception", ex);
+          await CheckDisconnectionFromExceptionAsync ("PrepareQueryAsync.PrepareQueryAsync", ex);
           throw;
         }
         m_queryReady = true;
       }
     }
 
+    async Task SubscribeToCncAlarmsAsync ()
+    {
+      var cncAlarmNamespaceIndex = GetCncAlarmNamespaceIndex ();
+
+      if (m_client?.Session is null) {
+        log.Error ("SubscribeToCncAlarmsAsync: Client session is null. Cannot subscribe.");
+        return;
+      }
+
+      var eventSourceNodeId = new NodeId ("Sinumerik", cncAlarmNamespaceIndex);
+
+      // Standard NodeId for BaseEventType in NS=0 (i=2041) - Used to reference the event fields
+      NodeId baseEventTypeNodeId = new NodeId (2041, 0);
+
+      m_eventSubscription = new Subscription (m_client.Session.DefaultSubscription) {
+        PublishingInterval = 1000,
+        DisplayName = $"Atsora Cnc Alarms ({CncAcquisitionId})"
+      };
+      m_client.Session.AddSubscription (m_eventSubscription);
+
+      await m_eventSubscription.CreateAsync ();
+
+      EventFilter filter = new EventFilter ();
+
+      // Select Clauses (Fields we want to receive)
+      // Using numeric values for Attribute IDs to avoid dependence on the static Attributes class.
+      filter.SelectClauses.AddRange (new SimpleAttributeOperand[]
+      {
+        // SimpleAttributeOperand(uint attributeId, QualifiedName alias)
+        new SimpleAttributeOperand(1, new QualifiedName("EventId")),
+        new SimpleAttributeOperand(2, new QualifiedName("Time")),
+        new SimpleAttributeOperand(4, new QualifiedName("Message")),
+        new SimpleAttributeOperand(5, new QualifiedName("Severity")), // UInt16 (100–1000)
+        new SimpleAttributeOperand(8, new QualifiedName("ConditionId")),
+        new SimpleAttributeOperand(9, new QualifiedName("SourceName")),// String Origine (NCK, PLC, HMI, etc.)
+        // TODO: AlarmId UInt32 ID interne unique de l’alarme dans le runtime
+        // TODO: ActiveState Boolean TRUE = active, FALSE = acquittée
+      });
+
+      var contentFilter = new ContentFilter ();
+
+      // Filter 1: OfType CNCAlarmType (NS=2)
+      var ofTypeElement = new ContentFilterElement {
+        FilterOperator = FilterOperator.OfType,
+        FilterOperands = new ExtensionObjectCollection
+          {
+            new ExtensionObject (new LiteralOperand(new Variant(new QualifiedName("CNCAlarmType", cncAlarmNamespaceIndex))))
+          }
+      };
+
+      // Filter 2: Severity > 0
+      var severityElement = new ContentFilterElement {
+        FilterOperator = FilterOperator.GreaterThan,
+        // Encapsulation de SimpleAttributeOperand et LiteralOperand dans ExtensionObject
+        FilterOperands = new ExtensionObjectCollection
+          {
+              new ExtensionObject(new SimpleAttributeOperand(5, new QualifiedName("Severity"))),
+              new ExtensionObject(new LiteralOperand(new Variant((uint)0)))
+          }
+      };
+
+      var filterElements = new ContentFilterElementCollection
+      {
+          ofTypeElement,
+          severityElement
+      };
+
+      contentFilter.Elements = filterElements;
+      filter.WhereClause = contentFilter;
+
+      var eventItem = new MonitoredItem (m_eventSubscription.MonitoredItemCount + 1) {
+        StartNodeId = eventSourceNodeId,
+        AttributeId = Attributes.EventNotifier,
+        MonitoringMode = MonitoringMode.Reporting,
+        Filter = filter,
+        DisplayName = "CNC Alarm Event"
+      };
+
+      eventItem.Notification += OnCncAlarmNotification;
+
+      m_eventSubscription.AddItem (eventItem);
+      await m_eventSubscription.ApplyChangesAsync ();
+    }
+
+    void OnCncAlarmNotification (MonitoredItem monitoredItem, MonitoredItemNotificationEventArgs e)
+    {
+      try {
+        DataValue notificationDataValue = e.NotificationValue as DataValue;
+        if (notificationDataValue == null) return;
+        EventNotificationList eventNotificationList = notificationDataValue.Value as EventNotificationList;
+
+        if (eventNotificationList == null) {
+          log.Warn ($"OnCncAlarmNotification: Received notification value is not an EventNotificationList. Type received: {notificationDataValue?.GetType ().FullName ?? "NULL"}");
+          return;
+        }
+
+        m_cncAlarms.Clear ();
+        foreach (EventFieldList eventField in eventNotificationList.Events) {
+          // Fields order matches the SelectClauses order (Time is at index 1, Message at index 2, etc.)
+          if (eventField.EventFields.Count >= 6) {
+            DateTime timestamp = (DateTime)((Variant)eventField.EventFields[1]).Value;
+            LocalizedText message = (LocalizedText)((Variant)eventField.EventFields[2]).Value;
+            uint severity = (uint)((Variant)eventField.EventFields[3]).Value;
+            string sourceName = ((Variant)eventField.EventFields[5]).Value.ToString ();
+            var alarmNumber = "0"; // TODO: alarmId or other
+            // TODO: acquitée ou pas ?
+            if (log.IsDebugEnabled) { 
+              log.Debug ($"OnCncAlarmNotification: Received CNC Alarm - Time: {timestamp}, Source: {sourceName}, Severity: {severity}, Message: {message.Text}");
+            }
+            var cncAlarm = new CncAlarm ("OpcUa", m_cncAlarmNamespace, sourceName, alarmNumber, message.Text);
+            m_cncAlarms.Add (cncAlarm);
+          }
+        }
+      }
+      catch (Exception ex) {
+        log.Error ("OnCncAlarmNotification: Error processing event notification.", ex);
+      }
+    }
 
     /// <summary>
     /// Finish method
     /// </summary>
     public void Finish ()
     {
-      PrepareQuery ();
+      FinishAsync ().RunSynchronously ();
     }
 
-    bool CheckDisconnectionFromException (string methodName, Exception ex)
+    public async Task FinishAsync ()
+    {
+      await PrepareQueryAsync ();
+    }
+
+    async Task<bool> CheckDisconnectionFromExceptionAsync (string methodName, Exception ex)
     {
       log.Error ($"CheckDisconnectionFromException: {methodName} returned an exception", ex);
-      return CheckDisconnectionFromException (ex);
+      return await CheckDisconnectionFromExceptionAsync (ex);
     }
 
-    bool CheckDisconnectionFromException (Exception ex)
+    async Task<bool> CheckDisconnectionFromExceptionAsync (Exception ex)
     {
       if (m_client is null) {
         if (log.IsDebugEnabled) {
-          log.Debug ($"CheckDisconnectionFromException: OPC UA client is null, nothing to do", ex);
+          log.Debug ($"CheckDisconnectionFromExceptionAsync: OPC UA client is null, nothing to do", ex);
         }
         return true;
       }
@@ -494,10 +701,10 @@ namespace Lemoine.Cnc
       var messagesRequireRestart = new List<string> { "BadSessionIdInvalid", "BadConnectionClosed" };
       if (messagesRequireRestart.Contains (ex.Message)) {
         if (log.IsInfoEnabled) {
-          log.Info ($"CheckDisconnectionFromException: disconnect since {ex.Message}", ex);
+          log.Info ($"CheckDisconnectionFromExceptionAsync: disconnect since {ex.Message}", ex);
         }
         ConnectionError = true;
-        Disconnect ();
+        await DisconnectAsync ();
         return false;
       }
       else {
@@ -716,7 +923,7 @@ namespace Lemoine.Cnc
     /// <returns></returns>
     public double DirectReadDouble (string address)
     {
-      var result = DirectRead (address);
+      var result = DirectReadAsync (address);
       return m_converter.ConvertAuto<double> (result);
     }
 
@@ -727,33 +934,33 @@ namespace Lemoine.Cnc
     /// </summary>
     /// <param name="address"></param>
     /// <returns></returns>
-    public object DirectRead (string address)
+    public async Task<object> DirectReadAsync (string address)
     {
       if (m_client is null) {
-        log.Error ($"DirectRead: opc ua client is null => give up");
+        log.Error ($"DirectReadAsync: opc ua client is null => give up");
         throw new Exception ("Opc ua client not initialized");
       }
 
       // Prepare the query
       try {
-        if (m_nodeManager.PrepareQuery (m_client.Session, new List<string> () { address })) {
-          log.Error ($"DirectRead: PrepareQuery returned false for {address}");
+        if (!await m_nodeManager.PrepareQueryAsync (m_client.Session, new List<string> () { address })) {
+          log.Error ($"DirectReadAsync: PrepareQueryAsync returned false for {address}");
           throw new Exception ("Couldn't prepare a query with address " + address);
         }
       }
       catch (Exception ex) {
-        log.Error ($"DirectRead: PrepareQuery returned an exception for {address}", ex);
-        CheckDisconnectionFromException ("DirectRead.PrepareQuery", ex);
+        log.Error ($"DirectReadAsync: PrepareQueryAsync returned an exception for {address}", ex);
+        await CheckDisconnectionFromExceptionAsync ("DirectReadAsync.PrepareQueryAsync", ex);
         throw;
       }
 
       // Launch it
       try {
-        m_nodeManager.ReadNodes (m_client.Session);
+        await m_nodeManager.ReadNodesAsync (m_client.Session);
       }
       catch (Exception ex) {
-        log.Error ($"DirectRead: ReadNodes returned an exception for {address}", ex);
-        CheckDisconnectionFromException ("DirectRead.ReadNodes", ex);
+        log.Error ($"DirectReadAsync: ReadNodesAsync returned an exception for {address}", ex);
+        await CheckDisconnectionFromExceptionAsync ("DirectReadAsync.ReadNodesAsync", ex);
         throw;
       }
 
@@ -762,8 +969,8 @@ namespace Lemoine.Cnc
         return m_nodeManager.Get (address);
       }
       catch (Exception ex) {
-        log.Error ($"DirectRead: Get returned an exception for {address}", ex);
-        CheckDisconnectionFromException ("DirectRead.Get", ex);
+        log.Error ($"DirectReadAsync: Get returned an exception for {address}", ex);
+        await CheckDisconnectionFromExceptionAsync ("DirectReadAsync.Get", ex);
         throw;
       }
     }
@@ -773,7 +980,7 @@ namespace Lemoine.Cnc
     /// </summary>
     /// <param name="parameter"></param>
     /// <param name="value"></param>
-    public void Write (string parameter, object value)
+    public async Task WriteAsync (string parameter, object value, CancellationToken cancellationToken = default)
     {
       // Possibly extract indexes
       var indexes = "";
@@ -783,15 +990,15 @@ namespace Lemoine.Cnc
           indexes = parts[1];
         }
         else {
-          log.Warn ($"Write: bad parameter {parameter}: cannot extract indexes");
+          log.Warn ($"WriteAsync: bad parameter {parameter}: cannot extract indexes");
         }
       }
 
       // Convert to a valid node id
-      string nodeId = m_nodeManager.GetNodeIdFromParam (m_client.Session, parameter);
+      string nodeId = await m_nodeManager.GetNodeIdFromParamAsync (m_client.Session, parameter);
       if (string.IsNullOrEmpty (nodeId)) {
-        log.Error ($"Write: no valid node id for parameter {parameter}");
-        throw new Exception ($"Write: no valid node id");
+        log.Error ($"WriteAsync: no valid node id for parameter {parameter}");
+        throw new Exception ($"WriteAsync: no valid node id");
       }
 
       // Build a list of values to write.
@@ -806,22 +1013,22 @@ namespace Lemoine.Cnc
         });
       }
       else {
-        log.Error ($"Write: {value} is not a VariableNode => give up");
-        throw new Exception ($"Write: invalid value");
+        log.Error ($"WriteAsync: {value} is not a VariableNode => give up");
+        throw new Exception ($"WriteAsync: invalid value");
       }
 
       // Write the value
-      m_client.Session.Write (null, nodesToWrite, out var results, out var diagnostics);
+      var writeResponse = await m_client.Session.WriteAsync (null, nodesToWrite, cancellationToken);
 
       // Log what happened
-      if (diagnostics != null) {
-        foreach (var diagnostic in diagnostics) {
-          log.Error ($"Write: diagnostic when writing data: {diagnostic}");
+      if (writeResponse?.DiagnosticInfos != null) {
+        foreach (var diagnostic in writeResponse.DiagnosticInfos) {
+          log.Error ($"WriteAsync: diagnostic when writing data: {diagnostic}");
         }
       }
 
-      if (results != null) {
-        foreach (var result in results) {
+      if (writeResponse?.Results != null) {
+        foreach (var result in writeResponse.Results) {
           if (StatusCode.IsNotGood (result)) {
             log.Error ($"Write: status {result} not good when writing data");
           }
