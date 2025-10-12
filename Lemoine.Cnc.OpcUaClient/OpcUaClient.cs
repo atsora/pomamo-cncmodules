@@ -210,7 +210,7 @@ namespace Lemoine.Cnc
     {
       if (m_client != null) {
         log.Info ($"Dispose: disconnect");
-        m_client.DisconnectAsync ().RunSynchronously ();
+        Task.Run (() => m_client.DisconnectAsync ()).GetAwaiter ().GetResult ();
       }
 
       GC.SuppressFinalize (this);
@@ -298,7 +298,7 @@ namespace Lemoine.Cnc
     /// <returns>success</returns>
     public bool Start ()
     {
-      return StartAsync ().Result;
+      return Task.Run (() => StartAsync ()).GetAwaiter ().GetResult ();
     }
 
     async Task<bool> StartAsync ()
@@ -675,7 +675,7 @@ namespace Lemoine.Cnc
     /// </summary>
     public void Finish ()
     {
-      FinishAsync ().RunSynchronously ();
+      Task.Run (() => FinishAsync ()).GetAwaiter ().GetResult ();
     }
 
     public async Task FinishAsync ()
