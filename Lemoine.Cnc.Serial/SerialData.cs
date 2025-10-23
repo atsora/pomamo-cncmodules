@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2025 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -65,7 +66,6 @@ namespace Lemoine.Cnc
     bool m_specificLine = false;
     bool m_error = false;
 
-    #region Getters / Setters
     /// <summary>
     /// String with the possible separator characters between the key and the value
     /// </summary>
@@ -148,9 +148,7 @@ namespace Lemoine.Cnc
     public bool Error {
       get { return m_error; }
     }
-    #endregion
 
-    #region Constructors / Destructor / ToString methods
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -162,9 +160,7 @@ namespace Lemoine.Cnc
     
     // Note: the Dispose method is implemented in
     //       the base class AbstractSerial
-    #endregion
 
-    #region Methods
     /// <summary>
     /// Start method: open the connection
     /// </summary>
@@ -173,19 +169,13 @@ namespace Lemoine.Cnc
       m_error = false;
       if ( (null != SerialPort)
           && (!SerialPort.IsOpen)) {
-        log.InfoFormat ("Start: " +
-                        "Serial port {0} was not opened, " +
-                        "try to open it",
+        log.InfoFormat ("Start: Serial port {0} was not opened, try to open it",
                         SerialPort.PortName);
         try {
           SerialPort.Open ();
         }
         catch (Exception ex) {
-          log.ErrorFormat ("Start: " +
-                           "Serial port {0} could not be opened, " +
-                           "exception {1}",
-                           SerialPort.PortName,
-                           ex);
+          log.Error ($"Start: Serial port {SerialPort.PortName} could not be opened", ex);
           m_error = true;
         }
       }
@@ -200,14 +190,12 @@ namespace Lemoine.Cnc
     {
       using (var holder = new ReadLockHolder (m_dataLock)) {
         if (m_data.Contains (param)) {
-          log.DebugFormat ("GetString: " +
-                           "get {0} for key {1}",
+          log.DebugFormat ("GetString: get {0} for key {1}",
                            m_data [param], param);
           return m_data [param] as string;
         }
         else {
-          log.ErrorFormat ("GetString: " +
-                           "could not get key {0}",
+          log.ErrorFormat ("GetString: could not get key {0}",
                            param);
           throw new Exception ("Unknown key");
         }
@@ -261,9 +249,7 @@ namespace Lemoine.Cnc
       }
       var queue = (Queue) m_events [param];
       if (null == queue) {
-        log.Debug ("GetEvents: " +
-                   "returned queue is null " +
-                   "(may happen the first time)");
+        log.Debug ("GetEvents: returned queue is null (may happen the first time)");
       }
       return queue;
     }
@@ -339,27 +325,23 @@ namespace Lemoine.Cnc
       // - Remove the suffix
       if (0 < suffix.Length) {
         if (!serialData.EndsWith (suffix, StringComparison.CurrentCultureIgnoreCase)) {
-          log.InfoFormat ("AnalyzeData: " +
-                          "acquired string {0} does not end with suffix {1}",
+          log.InfoFormat ("AnalyzeData: acquired string {0} does not end with suffix {1}",
                           serialData, suffix);
           return;
         }
         withoutSuffix = serialData.Substring (0, serialData.Length - suffix.Length);
       }
-      log.DebugFormat ("AnalyzeData: " +
-                       "acquired string is {0} without suffix ({1} with the suffix)",
+      log.DebugFormat ("AnalyzeData: acquired string is {0} without suffix ({1} with the suffix)",
                        withoutSuffix, serialData);
       
       string [] values = withoutSuffix.Split (keyValueSeparators.ToCharArray (),
                                               2,
                                               StringSplitOptions.RemoveEmptyEntries);
       if (values.Length < 1) {
-        log.InfoFormat ("AnalyzeData: " +
-                        "got an empty data");
+        log.InfoFormat ("AnalyzeData: got an empty data");
       }
       else if (values.Length < 2) {
-        log.WarnFormat ("AnalyzeData: " +
-                        "no key/value pair, got only {0}",
+        log.WarnFormat ("AnalyzeData: no key/value pair, got only {0}",
                         values [0]);
         using (var holder = new WriteLockHolder (m_dataLock)) {
           m_data [""] = values [0];
@@ -367,8 +349,7 @@ namespace Lemoine.Cnc
         }
       }
       else {
-        log.DebugFormat ("AnalyzeData: " +
-                         "got {0}={1}",
+        log.DebugFormat ("AnalyzeData: got {0}={1}",
                          values [0], values [1]);
         using (var holder = new WriteLockHolder (m_dataLock)) {
           m_data [values [0]] = values [1];
@@ -390,14 +371,12 @@ namespace Lemoine.Cnc
         }
         var queue = (Queue) m_events [key];
         Debug.Assert (null != queue);
-        log.DebugFormat ("PushEvent: " +
-                         "push key {0} value {1}",
+        log.DebugFormat ("PushEvent: push key {0} value {1}",
                          key, value);
         // Because the public members of queue are thread safe
         // there is no need to use a lock here
         queue.Enqueue (value);
       }
     }
-    #endregion
   }
 }
