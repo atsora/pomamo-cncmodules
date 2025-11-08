@@ -82,6 +82,12 @@ namespace Lemoine.Cnc
     }
 
     /// <summary>
+    /// Are there nodes to read?
+    /// </summary>
+    /// <returns></returns>
+    public bool IsNodesToRead () => m_readNodes.Any ();
+
+    /// <summary>
     /// Read a list of nodes from Server
     /// </summary>
     public async Task ReadNodesAsync (Opc.Ua.Client.ISession session, CancellationToken cancellationToken = default)

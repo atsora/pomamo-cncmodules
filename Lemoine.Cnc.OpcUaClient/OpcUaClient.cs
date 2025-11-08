@@ -25,7 +25,8 @@ namespace Lemoine.Cnc
   public sealed class OpcUaClient
     : Pomamo.CncModule.ICncModule, IDisposable
   {
-    static readonly int INITIAL_TIMEOUT_SLEEP = 1000; // ms
+    static readonly int INITIAL_TIMEOUT_SLEEP_MS = 1000; // ms = 1 s
+    static readonly int MAX_TIMEOUT_SLEEP_MS = 2 * 60 * 1000;// ms
 
     ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.OpcUaClient");
     readonly Lemoine.Cnc.OpcUaConverter m_converter = new Lemoine.Cnc.OpcUaConverter ();
@@ -42,7 +43,7 @@ namespace Lemoine.Cnc
     int m_defaultNamespaceIndex = -1;
     string m_cncAlarmNamespace = "Sinumerik";
     int m_cncAlarmNamespaceIndex = 2;
-    int m_timeoutSleep = 1000; // ms
+    int m_timeoutSleepMs = 1000; // ms
     Subscription m_eventSubscription = null;
     IList<CncAlarm> m_cncAlarms = new List<CncAlarm> ();
 
@@ -381,8 +382,8 @@ namespace Lemoine.Cnc
           log.Error ($"StartAsync: timeout exception", ex);
           ConnectionError = true;
           await DisconnectAsync ();
-          await Task.Delay (m_timeoutSleep);
-          m_timeoutSleep *= 2;
+          await Task.Delay (m_timeoutSleepMs);
+          IncreaseTimeout ();
         }
         catch (Exception ex) {
           log.Error ("StartAsync: Connect returned an exception", ex);
@@ -396,7 +397,7 @@ namespace Lemoine.Cnc
       }
       else if (log.IsDebugEnabled) {
         log.Debug ("StartAsync: connect is successful");
-        m_timeoutSleep = INITIAL_TIMEOUT_SLEEP;
+        m_timeoutSleepMs = INITIAL_TIMEOUT_SLEEP_MS;
       }
 
       if (this.CncAlarmSubscription) {
@@ -439,6 +440,16 @@ namespace Lemoine.Cnc
         if (log.IsDebugEnabled) {
           log.Debug ($"StartAsync: about to launch query since ready");
         }
+
+        if (!m_nodeManager.IsNodesToRead ()) {
+          log.Error ($"StartAsync: no node! Sleep and restart later");
+          ConnectionError = true;
+          await DisconnectAsync ();
+          await Task.Delay (m_timeoutSleepMs);
+          IncreaseTimeout ();
+          return false;
+        }
+
         try {
           await m_nodeManager.ReadNodesAsync (m_client.Session);
           return true;
@@ -512,7 +523,7 @@ namespace Lemoine.Cnc
           m_cncAlarmNamespaceIndex = m_nodeManager.GetNamespaceIndex (m_client.Session, this.CncAlarmNamespace);
         }
         catch (Exception ex) {
-          log.Error ("GetSinumerikNamespaceIndex: GetNamespaceIndex failed => return 2", ex);
+          log.Error ("GetCncAlarmNamespaceIndex: GetNamespaceIndex failed => return 2 for Sinumerik", ex);
           return 2;
         }
         return (ushort)m_cncAlarmNamespaceIndex;
@@ -705,6 +716,8 @@ namespace Lemoine.Cnc
         }
         ConnectionError = true;
         await DisconnectAsync ();
+        await Task.Delay (m_timeoutSleepMs);
+        IncreaseTimeout ();
         return false;
       }
       else {
@@ -1034,6 +1047,14 @@ namespace Lemoine.Cnc
           }
         }
       }
+    }
+
+    void IncreaseTimeout ()
+    {
+      if (MAX_TIMEOUT_SLEEP_MS <= m_timeoutSleepMs) {
+        return;
+      }
+      m_timeoutSleepMs *= 2;
     }
 
   }
