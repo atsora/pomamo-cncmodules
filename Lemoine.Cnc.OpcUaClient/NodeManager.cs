@@ -281,16 +281,19 @@ namespace Lemoine.Cnc
         count++;
       }
 
-      if (log.IsWarnEnabled) {
+      if (log.IsErrorEnabled) {
         if (count == parameters.Count) {
           log.Info ($"PrepareQueryAsync: successfully added {count}/{parameters.Count} parameters under monitoring");
+        }
+        else if (0 == count) {
+          log.Error ($"PrepareQueryAsync: no node was added while {parameters.Count} parameters should be monitor");
         }
         else {
           log.Warn ($"PrepareQueryAsync: successfully added {count}/{parameters.Count} parameters under monitoring");
         }
       }
 
-      return true;
+      return (0 != count);
     }
 
     /// <summary>
