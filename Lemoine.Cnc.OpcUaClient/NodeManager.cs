@@ -95,19 +95,19 @@ namespace Lemoine.Cnc
       m_resultsByNodeId.Clear ();
 
       if (session == null || session.Connected == false) {
-        log.Error ($"ReadNodes: session not connected");
+        log.Error ($"ReadNodesAsync: session not connected");
         // TODO: exception or not
         return;
       }
 
       if (0 == m_readNodes.Count) {
-        log.Error ($"ReadNodes: no node to read");
+        log.Error ($"ReadNodesAsync: no node to read");
         return;
       }
 
       try {
         if (log.IsDebugEnabled) {
-          log.Debug ($"ReadNodes: reading {m_readNodes.Count} nodes");
+          log.Debug ($"ReadNodesAsync: reading {m_readNodes.Count} nodes");
         }
 
         // Call Read Service
@@ -121,15 +121,15 @@ namespace Lemoine.Cnc
         ClientBase.ValidateResponse (readResponse.Results, m_readNodes);
 
         if (log.IsDebugEnabled) {
-          foreach (DataValue result in readResponse.Results) {
-            log.Debug ($"ReadNodes: Value={result.Value}, StatusCode={result.StatusCode}");
+          foreach (var result in readResponse.Results) {
+            log.Debug ($"ReadNodesAsync: Value={result.Value} StatusCode={result.StatusCode} Type={result.Value.GetType ()} TypeInfo={result.WrappedValue.TypeInfo}");
           }
         }
 
         ProcessResults (readResponse.Results, readResponse.DiagnosticInfos);
       }
       catch (Exception ex) {
-        log.Error ($"ReadNodes: exception", ex);
+        log.Error ($"ReadNodesAsync: exception", ex);
         throw;
       }
     }
@@ -306,7 +306,7 @@ namespace Lemoine.Cnc
     public async Task<string> GetNodeIdFromParamAsync (Opc.Ua.Client.ISession session, string parameter, int defaultNamespaceIndex = 0)
     {
       // Possibly remove the indexes
-      string parameterTmp = parameter;
+      var parameterTmp = parameter;
       if (parameter.Contains ("|")) {
         string[] parts = parameter.Split ('|');
         if (parts.Length == 2) {
@@ -458,13 +458,25 @@ namespace Lemoine.Cnc
       }
 
       // Store the new values
-      for (int i = 0; i < m_readNodes.Count; i++) {
-        string identifier = m_readNodes[i].NodeId.ToString ();
+      for (var i = 0; i < m_readNodes.Count; i++) {
+        var identifier = m_readNodes[i].NodeId.ToString ();
         if (m_readNodes[i].IndexRange != "") {
           identifier += "|" + m_readNodes[i].IndexRange;
         }
-
-        m_resultsByNodeId[identifier] = results[i].Value;
+        var v = results[i].Value;
+        if (log.IsDebugEnabled) {
+          log.Debug ($"ProcessResults: {identifier} => {v}");
+        }
+        if (v is byte[] byteString) {
+          var s = System.Text.Encoding.UTF8.GetString (byteString);
+          if (log.IsDebugEnabled) {
+            log.Debug ($"ProcessResults: byte[] {identifier} => {s}");
+          }
+          m_resultsByNodeId[identifier] = s;
+        }
+        else {
+          m_resultsByNodeId[identifier] = v;
+        }
 
         if (log.IsErrorEnabled) {
           LogResult (results[i], identifier);
