@@ -112,9 +112,9 @@ namespace Lemoine.Cnc
 
         // Call Read Service
         var readResponse = await session.ReadAsync (
-          null,
-          0,
-          TimestampsToReturn.Both,
+          requestHeader: null,
+          maxAge: 0,
+          TimestampsToReturn.Neither,
           m_readNodes, cancellationToken);
 
         // Validate the results
@@ -236,26 +236,25 @@ namespace Lemoine.Cnc
       int count = 0;
       var allNodeIdentifiers = new HashSet<string> ();
       foreach (var parameter in parameters) {
-        // Possibly extract indexes
-        string indexes = "";
-        if (parameter.Contains ("|")) {
-          string[] parts = parameter.Split ('|');
-          if (parts.Length == 2) {
-            indexes = parts[1];
+        // Convert to a valid node id
+        var nodeId = await GetNodeIdFromParamAsync (session, parameter, defaultNamespaceIndex);
+        if (string.IsNullOrEmpty (nodeId)) {
+          continue;
+        }
+        var identifier = nodeId.ToString ();
+
+        // Create a ReadValueId and validate it
+        var readValueId = new ReadValueId () { NodeId = nodeId, AttributeId = Attributes.Value };
+        if (parameter.Contains ("|")) { // Check if there is an index range 
+          var parameterItems = parameter.Split ('|');
+          if (parameterItems.Length == 2) {
+            readValueId.IndexRange = parameterItems[1];
+            identifier += "|" + readValueId.IndexRange;
           }
           else {
             log.Warn ($"PrepareQueryAsync: bad parameter {parameter}, cannot extract indexes");
           }
         }
-
-        // Convert to a valid node id
-        string nodeId = await GetNodeIdFromParamAsync (session, parameter, defaultNamespaceIndex);
-        if (string.IsNullOrEmpty (nodeId)) {
-          continue;
-        }
-
-        // Create a ReadValueId and validate it
-        var readValueId = new ReadValueId () { NodeId = nodeId, AttributeId = Attributes.Value, IndexRange = indexes };
         var validationResult = ReadValueId.Validate (readValueId);
         if (validationResult != null) {
           log.Error ($"PrepareQueryAsync: Invalid node id '{parameter}': {validationResult}");
@@ -263,7 +262,6 @@ namespace Lemoine.Cnc
         }
 
         // Associate the node id to the parameter
-        string identifier = nodeId.ToString () + (indexes != "" ? ("|" + indexes) : "");
         m_parametersWithNodeId[parameter] = identifier;
 
         // Add a ReadValueId
@@ -460,7 +458,7 @@ namespace Lemoine.Cnc
       // Store the new values
       for (var i = 0; i < m_readNodes.Count; i++) {
         var identifier = m_readNodes[i].NodeId.ToString ();
-        if (m_readNodes[i].IndexRange != "") {
+        if (!string.IsNullOrEmpty (m_readNodes[i].IndexRange)) {
           identifier += "|" + m_readNodes[i].IndexRange;
         }
         var v = results[i].Value;
