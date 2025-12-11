@@ -122,7 +122,7 @@ namespace Lemoine.Cnc
 
         if (log.IsDebugEnabled) {
           foreach (var result in readResponse.Results) {
-            log.Debug ($"ReadNodesAsync: Value={result.Value} StatusCode={result.StatusCode} Type={result.Value.GetType ()} TypeInfo={result.WrappedValue.TypeInfo}");
+            log.Debug ($"ReadNodesAsync: Value={result?.Value} StatusCode={result?.StatusCode} Type={result?.Value?.GetType ()} TypeInfo={result?.WrappedValue.TypeInfo}");
           }
         }
 
