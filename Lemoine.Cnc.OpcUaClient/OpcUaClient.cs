@@ -10,6 +10,7 @@ using Opc.Ua.Configuration;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -25,7 +26,11 @@ namespace Lemoine.Cnc
   public sealed class OpcUaClient
     : Pomamo.CncModule.ICncModule, IDisposable
   {
-    static readonly int INITIAL_TIMEOUT_SLEEP = 1000; // ms
+    static readonly int INITIAL_TIMEOUT_SLEEP_MS = 1000; // ms = 1 s
+    static readonly int MAX_TIMEOUT_SLEEP_MS = 2 * 60 * 1000;// ms
+
+    static readonly int PREPARE_QUERY_ATTEMPTS_BEFORE_DISCONNECTION_DEFAULT = 5; // Number of times before a disconnection in case of an error in prepareQuery
+    static readonly int PREPARE_QUERY_ATTEMPTS_BEFORE_CONNECTION_ERROR_DEFAULT = 1; // Number of times before a connection error in case of an error in prepareQuery
 
     ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.OpcUaClient");
     readonly Lemoine.Cnc.OpcUaConverter m_converter = new Lemoine.Cnc.OpcUaConverter ();
@@ -35,6 +40,7 @@ namespace Lemoine.Cnc
     string m_password;
     readonly IList<string> m_listParameters = new List<string> ();
     bool m_queryReady = false;
+    int m_prepareQueryAttempts = 0;
     readonly NodeManager m_nodeManager;
     ApplicationConfiguration m_configuration;
     UAClient m_client = null;
@@ -42,9 +48,19 @@ namespace Lemoine.Cnc
     int m_defaultNamespaceIndex = -1;
     string m_cncAlarmNamespace = "Sinumerik";
     int m_cncAlarmNamespaceIndex = 2;
-    int m_timeoutSleep = 1000; // ms
+    int m_timeoutSleepMs = 1000; // ms
     Subscription m_eventSubscription = null;
     IList<CncAlarm> m_cncAlarms = new List<CncAlarm> ();
+
+    /// <summary>
+    /// Number of prepare query attempts before disconnection
+    /// </summary>
+    public int PrepareQueryAttemptsBeforeDisconnection { get; set; } = PREPARE_QUERY_ATTEMPTS_BEFORE_DISCONNECTION_DEFAULT;
+
+    /// <summary>
+    /// Number of prepare query attempts before a connection error
+    /// </summary>
+    public int PrepareQueryAttemptsBeforeConnectionError { get; set; } = PREPARE_QUERY_ATTEMPTS_BEFORE_CONNECTION_ERROR_DEFAULT;
 
     /// <summary>
     /// <see cref="Pomamo.CncModule.ICncModule"/>
@@ -381,8 +397,8 @@ namespace Lemoine.Cnc
           log.Error ($"StartAsync: timeout exception", ex);
           ConnectionError = true;
           await DisconnectAsync ();
-          await Task.Delay (m_timeoutSleep);
-          m_timeoutSleep *= 2;
+          await Task.Delay (m_timeoutSleepMs);
+          IncreaseTimeout ();
         }
         catch (Exception ex) {
           log.Error ("StartAsync: Connect returned an exception", ex);
@@ -396,7 +412,7 @@ namespace Lemoine.Cnc
       }
       else if (log.IsDebugEnabled) {
         log.Debug ("StartAsync: connect is successful");
-        m_timeoutSleep = INITIAL_TIMEOUT_SLEEP;
+        m_timeoutSleepMs = INITIAL_TIMEOUT_SLEEP_MS;
       }
 
       if (this.CncAlarmSubscription) {
@@ -423,33 +439,66 @@ namespace Lemoine.Cnc
         }
       }
 
-      if (m_listParameters.Any () && !m_queryReady) {
-        log.Info ($"StartAsync: listParameters is already not empty => try to prepare the query now");
-        await PrepareQueryAsync ();
-      }
-
-      // Possibly launch the query now
-      if (!m_queryReady) {
+      if (!m_listParameters.Any ()) {
         if (log.IsDebugEnabled) {
-          log.Debug ($"StartAsync: query not ready => return true at once");
+          log.Debug ($"StartAsync: listParameters is empty => nothing to do");
         }
         return true;
       }
-      else { // !AsyncQuery && m_libOpc.QueryReady
-        if (log.IsDebugEnabled) {
-          log.Debug ($"StartAsync: about to launch query since ready");
-        }
-        try {
-          await m_nodeManager.ReadNodesAsync (m_client.Session);
-          return true;
-        }
-        catch (Exception ex) {
-          log.Error ("StartAsync: ReadNodesAsync failed", ex);
-          if (!await CheckDisconnectionFromExceptionAsync ("StartAsync.ReadNodesAsync", ex)) {
-            log.Error ($"StartAsync: disconnect after ReadNodesAsync");
+      else if (!m_queryReady) {
+        log.Info ($"StartAsync: listParameters is already not empty => try to prepare the query now");
+        var prepareQueryResult = await PrepareQueryAsync ();
+        if (!prepareQueryResult) {
+          ++m_prepareQueryAttempts;
+          log.Error ($"StartAsync: PrepareQueryAsync failed attempt={m_prepareQueryAttempts}");
+          ConnectionError = true;
+          if (this.PrepareQueryAttemptsBeforeDisconnection < m_prepareQueryAttempts) {
+            await DisconnectAsync ();
           }
-          return false;
+          await Task.Delay (m_timeoutSleepMs);
+          IncreaseTimeout ();
+          if (m_prepareQueryAttempts <= this.PrepareQueryAttemptsBeforeConnectionError) {
+            return true;
+          }
+          else {
+            ConnectionError = true;
+            return false;
+          }
         }
+        else {
+          m_prepareQueryAttempts = 0;
+          if (!m_queryReady) {
+            log.Fatal ($"StartAsync: m_queryReady is false after PrepareQueryAsync returned true");
+            Debug.Assert (m_queryReady);
+          }
+        }
+      }
+
+      // !AsyncQuery && m_libOpc.QueryReady
+      if (log.IsDebugEnabled) {
+        log.Debug ($"StartAsync: about to launch query since ready");
+      }
+
+      if (!m_nodeManager.IsNodesToRead ()) {
+        log.Fatal ($"StartAsync: no node (unexpected)! Sleep and restart later");
+        m_queryReady = false;
+        ConnectionError = true;
+        await DisconnectAsync ();
+        await Task.Delay (m_timeoutSleepMs);
+        IncreaseTimeout ();
+        return false;
+      }
+
+      try {
+        await m_nodeManager.ReadNodesAsync (m_client.Session);
+        return true;
+      }
+      catch (Exception ex) {
+        log.Error ("StartAsync: ReadNodesAsync failed", ex);
+        if (!await CheckDisconnectionFromExceptionAsync ("StartAsync.ReadNodesAsync", ex)) {
+          log.Error ($"StartAsync: disconnect after ReadNodesAsync");
+        }
+        return false;
       }
     }
 
@@ -512,7 +561,7 @@ namespace Lemoine.Cnc
           m_cncAlarmNamespaceIndex = m_nodeManager.GetNamespaceIndex (m_client.Session, this.CncAlarmNamespace);
         }
         catch (Exception ex) {
-          log.Error ("GetSinumerikNamespaceIndex: GetNamespaceIndex failed => return 2", ex);
+          log.Error ("GetCncAlarmNamespaceIndex: GetNamespaceIndex failed => return 2 for Sinumerik", ex);
           return 2;
         }
         return (ushort)m_cncAlarmNamespaceIndex;
@@ -522,13 +571,13 @@ namespace Lemoine.Cnc
       }
     }
 
-    async Task PrepareQueryAsync ()
+    async Task<bool> PrepareQueryAsync ()
     {
       if (!m_listParameters.Any ()) {
         if (log.IsDebugEnabled) {
           log.Debug ($"PrepareQueryAsync: listParameters is empty => nothing to do");
         }
-        return;
+        return true;
       }
 
       if (!m_queryReady) {
@@ -538,8 +587,8 @@ namespace Lemoine.Cnc
         try {
           var defaultNamespaceIndex = GetDefaultNamespaceIndex ();
           if (!await m_nodeManager.PrepareQueryAsync (m_client.Session, m_listParameters, defaultNamespaceIndex)) {
-            log.Error ($"PrepareQueryAsync: PrepareQueryAsync failed");
-            return;
+            log.Error ($"PrepareQueryAsync: PrepareQueryAsync failed or return list of nodes empty");
+            return false;
           }
         }
         catch (Exception ex) {
@@ -549,6 +598,8 @@ namespace Lemoine.Cnc
         }
         m_queryReady = true;
       }
+
+      return true;
     }
 
     async Task SubscribeToCncAlarmsAsync ()
@@ -657,7 +708,7 @@ namespace Lemoine.Cnc
             string sourceName = ((Variant)eventField.EventFields[5]).Value.ToString ();
             var alarmNumber = "0"; // TODO: alarmId or other
             // TODO: acquitée ou pas ?
-            if (log.IsDebugEnabled) { 
+            if (log.IsDebugEnabled) {
               log.Debug ($"OnCncAlarmNotification: Received CNC Alarm - Time: {timestamp}, Source: {sourceName}, Severity: {severity}, Message: {message.Text}");
             }
             var cncAlarm = new CncAlarm ("OpcUa", m_cncAlarmNamespace, sourceName, alarmNumber, message.Text);
@@ -680,7 +731,10 @@ namespace Lemoine.Cnc
 
     public async Task FinishAsync ()
     {
-      await PrepareQueryAsync ();
+      var result = await PrepareQueryAsync ();
+      if (!result) {
+        log.Error ($"FinishAsync: PrepareQueryAsync failed");
+      }
     }
 
     async Task<bool> CheckDisconnectionFromExceptionAsync (string methodName, Exception ex)
@@ -705,6 +759,8 @@ namespace Lemoine.Cnc
         }
         ConnectionError = true;
         await DisconnectAsync ();
+        await Task.Delay (m_timeoutSleepMs);
+        IncreaseTimeout ();
         return false;
       }
       else {
@@ -1034,6 +1090,14 @@ namespace Lemoine.Cnc
           }
         }
       }
+    }
+
+    void IncreaseTimeout ()
+    {
+      if (MAX_TIMEOUT_SLEEP_MS <= m_timeoutSleepMs) {
+        return;
+      }
+      m_timeoutSleepMs *= 2;
     }
 
   }

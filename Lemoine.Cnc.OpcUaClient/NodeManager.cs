@@ -82,6 +82,12 @@ namespace Lemoine.Cnc
     }
 
     /// <summary>
+    /// Are there nodes to read?
+    /// </summary>
+    /// <returns></returns>
+    public bool IsNodesToRead () => m_readNodes.Any ();
+
+    /// <summary>
     /// Read a list of nodes from Server
     /// </summary>
     public async Task ReadNodesAsync (Opc.Ua.Client.ISession session, CancellationToken cancellationToken = default)
@@ -89,41 +95,41 @@ namespace Lemoine.Cnc
       m_resultsByNodeId.Clear ();
 
       if (session == null || session.Connected == false) {
-        log.Error ($"ReadNodes: session not connected");
+        log.Error ($"ReadNodesAsync: session not connected");
         // TODO: exception or not
         return;
       }
 
       if (0 == m_readNodes.Count) {
-        log.Error ($"ReadNodes: no node to read");
+        log.Error ($"ReadNodesAsync: no node to read");
         return;
       }
 
       try {
         if (log.IsDebugEnabled) {
-          log.Debug ($"ReadNodes: reading {m_readNodes.Count} nodes");
+          log.Debug ($"ReadNodesAsync: reading {m_readNodes.Count} nodes");
         }
 
         // Call Read Service
         var readResponse = await session.ReadAsync (
-          null,
-          0,
-          TimestampsToReturn.Both,
+          requestHeader: null,
+          maxAge: 0,
+          TimestampsToReturn.Neither,
           m_readNodes, cancellationToken);
 
         // Validate the results
         ClientBase.ValidateResponse (readResponse.Results, m_readNodes);
 
         if (log.IsDebugEnabled) {
-          foreach (DataValue result in readResponse.Results) {
-            log.Debug ($"ReadNodes: Value={result.Value}, StatusCode={result.StatusCode}");
+          foreach (var result in readResponse.Results) {
+            log.Debug ($"ReadNodesAsync: Value={result?.Value} StatusCode={result?.StatusCode} Type={result?.Value?.GetType ()} TypeInfo={result?.WrappedValue.TypeInfo}");
           }
         }
 
         ProcessResults (readResponse.Results, readResponse.DiagnosticInfos);
       }
       catch (Exception ex) {
-        log.Error ($"ReadNodes: exception", ex);
+        log.Error ($"ReadNodesAsync: exception", ex);
         throw;
       }
     }
@@ -230,26 +236,25 @@ namespace Lemoine.Cnc
       int count = 0;
       var allNodeIdentifiers = new HashSet<string> ();
       foreach (var parameter in parameters) {
-        // Possibly extract indexes
-        string indexes = "";
-        if (parameter.Contains ("|")) {
-          string[] parts = parameter.Split ('|');
-          if (parts.Length == 2) {
-            indexes = parts[1];
+        // Convert to a valid node id
+        var nodeId = await GetNodeIdFromParamAsync (session, parameter, defaultNamespaceIndex);
+        if (string.IsNullOrEmpty (nodeId)) {
+          continue;
+        }
+        var identifier = nodeId.ToString ();
+
+        // Create a ReadValueId and validate it
+        var readValueId = new ReadValueId () { NodeId = nodeId, AttributeId = Attributes.Value };
+        if (parameter.Contains ("|")) { // Check if there is an index range 
+          var parameterItems = parameter.Split ('|');
+          if (parameterItems.Length == 2) {
+            readValueId.IndexRange = parameterItems[1];
+            identifier += "|" + readValueId.IndexRange;
           }
           else {
             log.Warn ($"PrepareQueryAsync: bad parameter {parameter}, cannot extract indexes");
           }
         }
-
-        // Convert to a valid node id
-        string nodeId = await GetNodeIdFromParamAsync (session, parameter, defaultNamespaceIndex);
-        if (string.IsNullOrEmpty (nodeId)) {
-          continue;
-        }
-
-        // Create a ReadValueId and validate it
-        var readValueId = new ReadValueId () { NodeId = nodeId, AttributeId = Attributes.Value, IndexRange = indexes };
         var validationResult = ReadValueId.Validate (readValueId);
         if (validationResult != null) {
           log.Error ($"PrepareQueryAsync: Invalid node id '{parameter}': {validationResult}");
@@ -257,7 +262,6 @@ namespace Lemoine.Cnc
         }
 
         // Associate the node id to the parameter
-        string identifier = nodeId.ToString () + (indexes != "" ? ("|" + indexes) : "");
         m_parametersWithNodeId[parameter] = identifier;
 
         // Add a ReadValueId
@@ -275,16 +279,19 @@ namespace Lemoine.Cnc
         count++;
       }
 
-      if (log.IsWarnEnabled) {
+      if (log.IsErrorEnabled) {
         if (count == parameters.Count) {
           log.Info ($"PrepareQueryAsync: successfully added {count}/{parameters.Count} parameters under monitoring");
+        }
+        else if (0 == count) {
+          log.Error ($"PrepareQueryAsync: no node was added while {parameters.Count} parameters should be monitor");
         }
         else {
           log.Warn ($"PrepareQueryAsync: successfully added {count}/{parameters.Count} parameters under monitoring");
         }
       }
 
-      return true;
+      return (0 != count);
     }
 
     /// <summary>
@@ -297,7 +304,7 @@ namespace Lemoine.Cnc
     public async Task<string> GetNodeIdFromParamAsync (Opc.Ua.Client.ISession session, string parameter, int defaultNamespaceIndex = 0)
     {
       // Possibly remove the indexes
-      string parameterTmp = parameter;
+      var parameterTmp = parameter;
       if (parameter.Contains ("|")) {
         string[] parts = parameter.Split ('|');
         if (parts.Length == 2) {
@@ -449,13 +456,25 @@ namespace Lemoine.Cnc
       }
 
       // Store the new values
-      for (int i = 0; i < m_readNodes.Count; i++) {
-        string identifier = m_readNodes[i].NodeId.ToString ();
-        if (m_readNodes[i].IndexRange != "") {
+      for (var i = 0; i < m_readNodes.Count; i++) {
+        var identifier = m_readNodes[i].NodeId.ToString ();
+        if (!string.IsNullOrEmpty (m_readNodes[i].IndexRange)) {
           identifier += "|" + m_readNodes[i].IndexRange;
         }
-
-        m_resultsByNodeId[identifier] = results[i].Value;
+        var v = results[i].Value;
+        if (log.IsDebugEnabled) {
+          log.Debug ($"ProcessResults: {identifier} => {v}");
+        }
+        if (v is byte[] byteString) {
+          var s = System.Text.Encoding.UTF8.GetString (byteString);
+          if (log.IsDebugEnabled) {
+            log.Debug ($"ProcessResults: byte[] {identifier} => {s}");
+          }
+          m_resultsByNodeId[identifier] = s;
+        }
+        else {
+          m_resultsByNodeId[identifier] = v;
+        }
 
         if (log.IsErrorEnabled) {
           LogResult (results[i], identifier);
