@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -13,11 +14,8 @@ namespace Lemoine.Cnc
   /// </summary>
   public abstract class AbstractSerial: Lemoine.Cnc.BaseCncModule, IDisposable
   {
-    #region Members
     SerialPort serialPort = new SerialPort ();
-    #endregion
 
-    #region Getters / Setters
     /// <summary>
     /// Serial port that is used
     /// </summary>
@@ -65,9 +63,7 @@ namespace Lemoine.Cnc
           case System.IO.Ports.Parity.Space:
             return "Space";
           default:
-            log.FatalFormat ("Parity.set: " +
-                             "unknown parity {0}",
-                             serialPort.Parity);
+            log.Fatal ($"Parity.set: unknown parity {serialPort.Parity}");
             throw new Exception ("Unknown parity");
         }
       }
@@ -89,9 +85,7 @@ namespace Lemoine.Cnc
           serialPort.Parity = System.IO.Ports.Parity.Space;
         }
         else {
-          log.ErrorFormat ("Parity.set: " +
-                           "invalid parity {0}",
-                           value);
+          log.Error ($"Parity.set: invalid parity {value}");
           throw new ArgumentException ("Invalid serial parity");
         }
       }
@@ -123,9 +117,7 @@ namespace Lemoine.Cnc
           case System.IO.Ports.StopBits.Two:
             return 2;
           default:
-            log.FatalFormat ("StopBits.get: " +
-                             "unknown stop bits {0}",
-                             serialPort.StopBits);
+            log.Fatal ($"StopBits.get: unknown stop bits {serialPort.StopBits}");
             throw new Exception ("Unknown stop bits");
         }
       }
@@ -141,9 +133,7 @@ namespace Lemoine.Cnc
           serialPort.StopBits = System.IO.Ports.StopBits.Two;
         }
         else {
-          log.ErrorFormat ("StopBits.set: " +
-                           "invalid value {0}",
-                           value);
+          log.Error ($"StopBits.set: invalid value {value}");
           throw new ArgumentException ("Invalid stop bits");
         }
       }
@@ -170,9 +160,7 @@ namespace Lemoine.Cnc
           case System.IO.Ports.Handshake.RequestToSendXOnXOff:
             return "RequestToSendXOnXOff";
           default:
-            log.FatalFormat ("Handshake.set: " +
-                             "unknown handshake {0}",
-                             serialPort.Handshake);
+            log.Fatal ($"Handshake.set: unknown handshake {serialPort.Handshake}");
             throw new Exception ("Unknown handshake");
         }
       }
@@ -194,9 +182,7 @@ namespace Lemoine.Cnc
           serialPort.Handshake = System.IO.Ports.Handshake.RequestToSendXOnXOff;
         }
         else {
-          log.ErrorFormat ("Handshake.set: " +
-                           "invalid handshake {0}",
-                           value);
+          log.Error ($"Handshake.set: invalid handshake {value}");
           throw new ArgumentException ("Invalid handshake");
         }
       }
@@ -247,9 +233,7 @@ namespace Lemoine.Cnc
       get { return serialPort.WriteTimeout; }
       set { serialPort.WriteTimeout = value; }
     }
-    #endregion
 
-    #region Constructors / Destructors
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -275,9 +259,5 @@ namespace Lemoine.Cnc
       
       GC.SuppressFinalize (this);
     }
-    #endregion
-
-    #region Methods
-    #endregion
   }
 }

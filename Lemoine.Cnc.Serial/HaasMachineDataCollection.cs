@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -21,16 +22,13 @@ namespace Lemoine.Cnc
   /// </summary>
   public class HaasMachineDataCollection : AbstractSerial, Lemoine.Cnc.ICncModule
   {
-    #region Members
     bool m_error = false;
     string m_previousMotionTime = null;
     bool m_echo = true;
     string m_threeInOne = null;
     bool m_threeInOneRequested = false;
     string m_programName = null;
-    #endregion
 
-    #region Getters / Setters
     /// <summary>
     /// MachineDataCollection echoes the request
     /// 
@@ -134,9 +132,7 @@ namespace Lemoine.Cnc
         return parts;
       }
     }
-    #endregion
 
-    #region Constructors / Destructor / ToString methods
     /// <summary>
     /// Constructor
     /// 
@@ -160,9 +156,7 @@ namespace Lemoine.Cnc
 
     // Note: the Dispose method is implemented in
     //       the base class AbstractSerial
-    #endregion
 
-    #region Methods
     /// <summary>
     /// Make a request to the Machine Data Collection module
     /// 
@@ -173,10 +167,7 @@ namespace Lemoine.Cnc
     public string GetString (string request)
     {
       if (SerialPort.IsOpen == false) {
-        log.WarnFormat ("GetString ({0}): " +
-                        "IO Com port {1} is not opened, try to open it",
-                        request,
-                        this.SerialPort.PortName);
+        log.Warn ($"GetString ({request}): IO Com port {this.SerialPort.PortName} is not opened, try to open it");
         try {
           SerialPort.Open ();
         }
@@ -230,16 +221,11 @@ namespace Lemoine.Cnc
           log.Debug ($"GetString ({request}): got line {response}");
         }
         if (response.Contains ("INVALID NUMBER")) { // Error !
-          log.ErrorFormat ("GetString ({0}): " +
-                           "got error {1}",
-                           request,
-                           response);
+          log.Error ($"GetString ({request}): got error {response}");
           // Read one more line here because there is a carriage return after INVALID NUMBER
           try {
             response = SerialPort.ReadLine ();
-            log.DebugFormat ("GetString ({0}): " +
-                             "read line {1} after INVALID NUMBER",
-                             request, response);
+            log.Debug ($"GetString ({request}): read line {response} after INVALID NUMBER");
           }
           catch (Exception ex) {
             log.Error ($"GetString ({request}): read exception after INVALID NUMBER", ex);
@@ -269,12 +255,7 @@ namespace Lemoine.Cnc
             if (m_echo) {
               // We should get the right line now ! Because the line with STX / ETP
               // follows the request line
-              log.ErrorFormat ("GetString ({0}): " +
-                               "no STX=0x02 character in {1} " +
-                               "just after the request line " +
-                               "=> give up",
-                               request,
-                               response);
+              log.Error ($"GetString ({request}): no STX=0x02 character in {response} just after the request line => give up");
               throw new Exception ("invalid response after request output");
             }
             else { // false == m_echo => try another line
@@ -306,10 +287,7 @@ namespace Lemoine.Cnc
       }
 
       // The data was not processed in the loop: the request line or STX was not found
-      log.ErrorFormat ("GetString ({0}): " +
-                       "request line or STX not found. " +
-                       "Last response was {1}",
-                       request, response);
+      log.Error ($"GetString ({request}): request line or STX not found. Last response was {response}");
       m_error = true;
       throw new Exception ("request line or STX not found");
     }
@@ -334,9 +312,7 @@ namespace Lemoine.Cnc
         return GetString (parameter);
       }
       else if (2 != parameters.Length) {
-        log.ErrorFormat ("GetSubString ({0}): " +
-                         "invalid parameter {0}",
-                         parameter);
+        log.Error ($"GetSubString ({parameter}): invalid parameter {parameter}");
         throw new ArgumentException ("invalid parameter");
       }
       else { // 2 == parameters.Length
@@ -438,6 +414,5 @@ namespace Lemoine.Cnc
       m_threeInOne = null;
       m_threeInOneRequested = false;
     }
-    #endregion
   }
 }

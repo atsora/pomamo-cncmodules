@@ -1,5 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
-// Copyright (C) 2025 Atsora Solutions
+// Copyright (C) 2025-2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
