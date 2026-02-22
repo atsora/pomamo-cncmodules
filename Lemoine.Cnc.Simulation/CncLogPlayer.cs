@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -24,7 +25,6 @@ namespace Lemoine.Cnc
   {
     static readonly Regex DICTIONARY_REGEX = new Regex ("^<[^,]+,[^,]+>.*$", RegexOptions.Compiled);
 
-    #region Members
     /// <summary>
     /// Standard RegExp used for detecting CNC key/value pairs lines in log file
     /// </summary>
@@ -44,9 +44,7 @@ namespace Lemoine.Cnc
     int m_maxLines = 0;
     Regex m_regex = new Regex (STANDARD_REGEXP, RegexOptions.Compiled);
     bool m_processError = false;
-    #endregion // Members
 
-    #region Getters / Setters
     /// <summary>
     /// Current Date Time in Log file
     /// </summary>
@@ -161,9 +159,7 @@ namespace Lemoine.Cnc
     {
       get { return m_processError; }
     }
-    #endregion // Getters / Setters
 
-    #region Constructors
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -183,9 +179,7 @@ namespace Lemoine.Cnc
 
       GC.SuppressFinalize (this);
     }
-    #endregion // Constructors
 
-    #region Methods
     /// <summary>
     /// Start method
     /// </summary>
@@ -239,7 +233,7 @@ namespace Lemoine.Cnc
               log.Debug ($"GetData: got {stringData} for param {param}");
             }
             if (param.Equals ("CncVariableSet", StringComparison.InvariantCultureIgnoreCase)) {
-              return Lemoine.Collections.EnumerableString.ParseDictionaryString<string, object> (":;" + stringData, s => s, ConvertData);
+              return Lemoine.Collections.EnumerableString.ParseDictionaryString<string, object> (stringData, s => s, ConvertData);
             }
             else if (DICTIONARY_REGEX.IsMatch (stringData)) {
               return (System.Collections.IDictionary)Lemoine.Collections.EnumerableString.ParseAuto (stringData);
@@ -267,19 +261,33 @@ namespace Lemoine.Cnc
 
     object ConvertData (string stringData)
     {
+      if (stringData is null) {
+        return null;
+      }
+
       try {
         return Convert.ChangeType (stringData, System.TypeCode.Int32, CultureInfo.InvariantCulture);
       }
       catch (Exception) {
         try {
-          return Convert.ChangeType (stringData, System.TypeCode.Double, CultureInfo.InvariantCulture);
+          if (stringData.Contains (",") && !stringData.Contains (".")) {
+            return Convert.ChangeType (stringData, System.TypeCode.Double, CultureInfo.GetCultureInfo ("fr-FR"));
+          }
+          else {
+            return Convert.ChangeType (stringData, System.TypeCode.Double, CultureInfo.InvariantCulture);
+          }
         }
         catch (Exception) {
           try {
-            return Convert.ChangeType (stringData, System.TypeCode.Boolean, CultureInfo.InvariantCulture);
+            return Convert.ChangeType (stringData, System.TypeCode.Double);
           }
           catch (Exception) {
-            return stringData;
+            try {
+              return Convert.ChangeType (stringData, System.TypeCode.Boolean, CultureInfo.InvariantCulture);
+            }
+            catch (Exception) {
+              return stringData;
+            }
           }
         }
       }
@@ -288,6 +296,8 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Read a position that is in the following format:
     /// param=[Position X=0.195609 Y=-0.217557 Z=0.00085] 
+    /// or
+    /// param=[Position X=0,195609 Y=-0,217557 Z=0,00085] 
     /// </summary>
     /// <param name="param"></param>
     /// <returns></returns>
@@ -316,10 +326,16 @@ namespace Lemoine.Cnc
         string letter = split[0];
         double? coord = null;
         try {
-          coord = (double)Convert.ChangeType (split[1], System.TypeCode.Double, CultureInfo.InvariantCulture);
+          var s = split[1];
+          if (s.Contains (",") && !s.Contains (".")) {
+            coord = (double)Convert.ChangeType (s, System.TypeCode.Double, CultureInfo.GetCultureInfo ("fr-FR"));
+          }
+          else {
+            coord = (double)Convert.ChangeType (s, System.TypeCode.Double, CultureInfo.InvariantCulture);
+          }
         }
         catch (Exception) {
-          log.WarnFormat ("GetPosition: couldn't convert '{0}' into a double", split[1]);
+          log.Warn ($"GetPosition: couldn't convert '{split[1]}' into a double");
         }
         if (!coord.HasValue) {
           continue; // We skip the data
@@ -357,7 +373,7 @@ namespace Lemoine.Cnc
             zOk = true;
             break;
           default:
-            log.WarnFormat ("GetPosition: unknown coordinate '{0}'", split[0]);
+            log.Warn ($"GetPosition: unknown coordinate '{split[0]}'");
             break;
         }
       }
@@ -506,15 +522,14 @@ namespace Lemoine.Cnc
     DateTime ParseDateTime (string dateString)
     {
       DateTime dateTime;
-      string[] dateTimeFormats = { "yyyy-MM-dd HH:mm:ss,fff" }; // TODO: add other formats
+      string[] dateTimeFormats = { "yyyy-MM-dd HH:mm:ss,fff", "yyyy-MM-dd HH:mm:ss.fff" }; // TODO: add other formats
 
       if (DateTime.TryParseExact (dateString, dateTimeFormats, CultureInfo.InvariantCulture,
                                  DateTimeStyles.AllowWhiteSpaces, out dateTime)) {
         return dateTime;
       }
       else {
-        throw new FormatException (String.Format ("String {0} is not recognized as a valid dateTime",
-                                                dateString));
+        throw new FormatException ($"String {dateString} is not recognized as a valid dateTime");
       }
     }
 
@@ -566,6 +581,5 @@ namespace Lemoine.Cnc
         }
       }
     }
-    #endregion // Methods
   }
 }
