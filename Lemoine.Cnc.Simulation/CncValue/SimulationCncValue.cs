@@ -13,14 +13,11 @@ namespace Lemoine.Cnc
   /// </summary>
   public partial class SimulationScenario
   {
-    #region Getters / Setters
     ScenarioReaderCncValue ReaderCncValue
     {
       get { return m_readers['V'] as ScenarioReaderCncValue; }
     }
-    #endregion // Getters / Setters
 
-    #region Methods
     /// <summary>
     /// Get a cnc value
     /// </summary>
@@ -67,6 +64,5 @@ namespace Lemoine.Cnc
       var s = GetCncValue (param).ToString ();
       return s.Split ('\n');
     }
-    #endregion // Methods
   }
 }

@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -12,14 +13,8 @@ namespace Lemoine.Cnc
   /// </summary>
   public partial class SimulationScenario
   {
-    #region Getters / Setters
-    ScenarioReaderToolLife ReaderToolLife
-    {
-      get { return m_readers['T'] as ScenarioReaderToolLife; }
-    }
-    #endregion // Getters / Setters
+    ScenarioReaderToolLife ReaderToolLife => m_readers['T'] as ScenarioReaderToolLife;
 
-    #region Methods
     /// <summary>
     /// Current tool life data
     /// </summary>
@@ -27,13 +22,10 @@ namespace Lemoine.Cnc
     public ToolLifeData ToolLifeData
     {
       get {
-        ToolLifeData data = null;
         lock (m_readers) {
-          data = ReaderToolLife.GetToolLifeData ().Clone ();
+          return ReaderToolLife.GetToolLifeData ().Clone ();
         }
-        return data;
       }
     }
-    #endregion // Methods
   }
 }
