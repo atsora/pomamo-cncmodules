@@ -14,9 +14,7 @@ namespace Lemoine.Cnc
   /// </summary>
   public class ScenarioReaderCncValue : IScenarioReader
   {
-    #region Members
     IDictionary<string, object> m_cncValues = new Dictionary<string, object> ();
-    #endregion // Members
 
     ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.Simulation.ScenarioReader.CncValue");
 
