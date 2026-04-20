@@ -35,15 +35,16 @@
  * http://opcfoundation.org/License/MIT/1.00/
  * ======================================================================*/
 
+using log4net;
+using Opc.Ua;
+using Opc.Ua.Client;
+using Opc.Ua.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using log4net;
-using Opc.Ua;
-using Opc.Ua.Client;
 
 namespace Lemoine.Cnc
 {
@@ -54,6 +55,7 @@ namespace Lemoine.Cnc
   {
     ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.OpcUaClient.UAClient");
 
+    readonly ApplicationInstance m_application;
     readonly ApplicationConfiguration m_configuration;
     Opc.Ua.Client.ISession m_session;
     SessionReconnectHandler m_reconnectHandler;
@@ -115,10 +117,18 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Constructor
     /// </summary>
-    public UAClient (int cncAcquisitionId, ApplicationConfiguration configuration)
+    public UAClient (int cncAcquisitionId, ApplicationInstance application)
     {
+      if (application == null) {
+        throw new ArgumentNullException (nameof (application));
+      }
+      if (application.ApplicationConfiguration == null) {
+        throw new ArgumentException ("ApplicationConfiguration is null", nameof (application));
+      }
+
       this.CncAcquisitionId = cncAcquisitionId;
-      m_configuration = configuration;
+      m_application = application;
+      m_configuration = application.ApplicationConfiguration;
       m_configuration.CertificateValidator.CertificateValidation += CertificateValidation;
     }
 
@@ -132,6 +142,34 @@ namespace Lemoine.Cnc
       m_configuration.CertificateValidator.CertificateValidation -= CertificateValidation;
     }
     #endregion
+
+    async Task EnsureApplicationCertificateAsync ()
+    {
+      var certOk = await m_application.CheckApplicationInstanceCertificates (false).ConfigureAwait (false);
+      if (!certOk) {
+        throw new ServiceResultException ("Application certificate validation failed.");
+      }
+
+      var certId = m_configuration.SecurityConfiguration?.ApplicationCertificate;
+      if (certId == null) {
+        throw new ServiceResultException ("ApplicationCertificate is not configured.");
+      }
+
+      var cert = await certId.Find (true).ConfigureAwait (false);
+      if (cert == null) {
+        throw new ServiceResultException ("ApplicationCertificate could not be resolved.");
+      }
+
+      if (!cert.HasPrivateKey) {
+        throw new ServiceResultException ("ApplicationCertificate has no private key.");
+      }
+
+      m_configuration.SecurityConfiguration.ApplicationCertificate.Certificate = cert;
+
+      if (log.IsInfoEnabled) {
+        log.Info ($"EnsureApplicationCertificateAsync: subject={cert.Subject}, thumbprint={cert.Thumbprint}, hasPrivateKey={cert.HasPrivateKey}");
+      }
+    }
 
     /// <summary>
     /// Creates a session with the UA server
@@ -169,6 +207,8 @@ namespace Lemoine.Cnc
           }
           var endpointConfiguration = EndpointConfiguration.Create (m_configuration);
           var endpoint = new ConfiguredEndpoint (null, endpointDescription, endpointConfiguration);
+
+          await EnsureApplicationCertificateAsync ();
 
           var userIdentity = string.IsNullOrEmpty (this.Username)
             ? new UserIdentity ()
