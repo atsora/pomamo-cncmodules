@@ -10,6 +10,7 @@ using Opc.Ua.Configuration;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -42,7 +43,7 @@ namespace Lemoine.Cnc
     bool m_queryReady = false;
     int m_prepareQueryAttempts = 0;
     readonly NodeManager m_nodeManager;
-    ApplicationConfiguration m_configuration;
+    ApplicationInstance m_application;
     UAClient m_client = null;
     string m_defaultNamespace;
     int m_defaultNamespaceIndex = -1;
@@ -181,7 +182,7 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Renew the certificate ?
     /// </summary>
-    public bool RenewCertificate { get; set; } = true;
+    public bool RenewCertificate { get; set; } = false;
 
     /// <summary>
     /// Connection timeout in seconds
@@ -282,20 +283,20 @@ namespace Lemoine.Cnc
         NonceLength = 32,
         ApplicationCertificate = new CertificateIdentifier {
           StoreType = CertificateStoreType.Directory,
-          StorePath = pkiDirectory + "own",
+          StorePath = Path.Combine (pkiDirectory, "own"),
           SubjectName = Utils.Format (@"CN={0}, DC={1}", configuration.ApplicationName, System.Net.Dns.GetHostName ())
         },
         TrustedIssuerCertificates = new CertificateTrustList {
           StoreType = CertificateStoreType.Directory,
-          StorePath = pkiDirectory + "issuer"
+          StorePath = Path.Combine (pkiDirectory, "issuer")
         },
         TrustedPeerCertificates = new CertificateTrustList {
           StoreType = CertificateStoreType.Directory,
-          StorePath = pkiDirectory + "trusted"
+          StorePath = Path.Combine (pkiDirectory, "trusted")
         },
         RejectedCertificateStore = new CertificateTrustList {
           StoreType = CertificateStoreType.Directory,
-          StorePath = pkiDirectory + "rejected"
+          StorePath = Path.Combine (pkiDirectory, "rejected")
         },
       };
       return configuration;
@@ -324,7 +325,7 @@ namespace Lemoine.Cnc
       }
 
       // Initialize the library the first time
-      if (m_configuration is null) {
+      if (m_application is null) {
         log.Info ("StartAsync: Initializing the OPC UA configuration");
         var configuration = GetConfiguration ();
         var application = GetApplication (configuration);
@@ -357,7 +358,7 @@ namespace Lemoine.Cnc
           log.Error ($"StartAsync: CheckApplicationInstanceCertificate failed with an exception, but continue", ex);
         }
 
-        m_configuration = configuration;
+        m_application = application;
       }
 
       if (m_client is null) {
@@ -365,7 +366,7 @@ namespace Lemoine.Cnc
           log.Debug ("StartAsync: about to create the OPC UA Client");
         }
         try {
-          m_client = new UAClient (this.CncAcquisitionId, m_configuration);//, Namespace, Username, Password, Encryption, SecurityMode);
+          m_client = new UAClient (this.CncAcquisitionId, m_application);//, Namespace, Username, Password, Encryption, SecurityMode);
           m_client.SecurityMode = this.SecurityMode;
           m_client.Username = this.Username;
           m_client.Password = this.Password;

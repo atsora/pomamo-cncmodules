@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -48,7 +49,6 @@ namespace Lemoine.Cnc
       TIMEOUT = 4
     };
 
-    #region Members
     string m_hostname;
     int m_port = DEFAULT_PORT;
     int m_tcpRetrySleep = DEFAULT_TCP_RETRY_SLEEP;
@@ -61,9 +61,7 @@ namespace Lemoine.Cnc
     bool m_executingBlockKnown = false;
     bool m_executingBlock = false;
     IDictionary<string, string> m_cache = new Dictionary<string, string> ();
-    #endregion // Members
 
-    #region Getters / Setters
     /// <summary>
     /// Hostname of the CNC
     /// </summary>
@@ -95,12 +93,7 @@ namespace Lemoine.Cnc
     /// </summary>
     public string ConnectionParameter
     {
-      get
-      {
-        return String.Format ("{0}:{1}",
-                              m_hostname,
-                              m_port);
-      }
+      get => $"{m_hostname}:{m_port}";
       set
       {
         string[] ethernetParameters = value.Split (':');
@@ -378,9 +371,9 @@ namespace Lemoine.Cnc
           throw new Exception ("BlockNumber unknown if not executing block");
         }
         string v = GetString ("N");
-        log.DebugFormat ("BlockNumber.get: " +
-                         "got {0} for objectName=N",
-                         v);
+        if (log.IsDebugEnabled) {
+          log.Debug ($"BlockNumber.get: got {v} for objectName=N");
+        }
         if (v.StartsWith ("N", StringComparison.InvariantCultureIgnoreCase)) {
           return int.Parse (v.Substring (1));
         }
@@ -389,9 +382,7 @@ namespace Lemoine.Cnc
         }
       }
     }
-    #endregion // Getters / Setters
 
-    #region Constructors / Destructor / ToString methods
     /// <summary>
     /// Constructor
     /// </summary>
@@ -408,9 +399,7 @@ namespace Lemoine.Cnc
       // Do nothing special here
       GC.SuppressFinalize (this);
     }
-    #endregion
 
-    #region Methods
     /// <summary>
     /// Start method
     /// </summary>
@@ -449,17 +438,16 @@ namespace Lemoine.Cnc
     string GetString (string param, bool cache)
     {
       if (false == CheckConnection ()) {
-        log.ErrorFormat ("GetStringValue: " +
-                         "connection to the CNC failed");
+        log.Error ("GetStringValue: connection to the CNC failed");
         throw new Exception ("No CNC connection");
       }
 
       if (cache) {
         string v;
         if (m_cache.TryGetValue (param, out v)) {
-          log.DebugFormat ("GetStringValue: " +
-                           "get the value {0} from cache for param {1}",
-                           v, param);
+          if (log.IsDebugEnabled) {
+            log.Debug ($"GetStringValue: get the value {v} from cache for param {param}");
+          }
           return v;
         }
       }
@@ -502,10 +490,9 @@ namespace Lemoine.Cnc
       switch (status) {
         case RS.ACCEPTED:
         case RS.EXECUTED:
-          log.DebugFormat ("GetString: " +
-                           "ObjectRead returned a good status {0} " +
-                           "for param {1}",
-                           status, param);
+          if (log.IsDebugEnabled) {
+            log.Debug ($"GetString: ObjectRead returned a good status {status} for param {param}");
+          }
           break;
         case RS.REFUSED:
         case RS.ABORTED:
@@ -548,9 +535,9 @@ namespace Lemoine.Cnc
       }
 
       if (cache) {
-        log.DebugFormat ("GetString: " +
-                         "cache value {0} for param {1}",
-                         results[0].value, param);
+        if (log.IsDebugEnabled) {
+          log.Debug ($"GetString: cache value {results[0].value} for param {param}");
+        }
         m_cache[param] = results[0].value;
       }
 
@@ -622,6 +609,17 @@ namespace Lemoine.Cnc
     }
 
     /// <summary>
+    /// Get a bool value: convert ON/OF to a boolean
+    /// </summary>
+    /// <param name="param">objectName (FIDIA object name) or objectName/param1</param>
+    /// <returns></returns>
+    public bool GetBool (string param)
+    {
+      var s = this.GetString (param);
+      return s.Equals ("ON");
+    }
+
+    /// <summary>
     /// Check if the connection with the CNC is up. If not, connect to it
     /// </summary>
     /// <returns>The connection was successful</returns>
@@ -685,7 +683,6 @@ namespace Lemoine.Cnc
       m_connected = true;
       return true;
     }
-    #endregion
 
     class IORException : Exception
     {

@@ -14,9 +14,7 @@ namespace Lemoine.Cnc
   /// </summary>
   public class ScenarioReaderCncValue : IScenarioReader
   {
-    #region Members
     IDictionary<string, object> m_cncValues = new Dictionary<string, object> ();
-    #endregion // Members
 
     ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.Simulation.ScenarioReader.CncValue");
 
@@ -29,7 +27,6 @@ namespace Lemoine.Cnc
       log = l;
     }
 
-    #region Get methods
     /// <summary>
     /// Get a cnc value
     /// </summary>
@@ -46,9 +43,7 @@ namespace Lemoine.Cnc
         throw new Exception (message);
       }
     }
-    #endregion // Get methods
 
-    #region Process methods
     /// <summary>
     /// <see cref="IScenarioReader"/>
     /// </summary>
@@ -110,6 +105,5 @@ namespace Lemoine.Cnc
       // Fallback: string
       return v;
     }
-    #endregion // Process methods
   }
 }

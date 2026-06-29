@@ -15,9 +15,7 @@ namespace Lemoine.Cnc
   /// </summary>
   public class ScenarioReaderToolLife : IScenarioReader
   {
-    #region Members
     readonly ToolLifeData m_currentToolLifeData = new ToolLifeData ();
-    #endregion // Members
 
     static readonly Regex CHECK_TOOL = new Regex (@"^T[0-9]+\[[0-9]+([.][0-9]{1,3})?s\]$");
     static readonly Regex CHECK_TOOL_2 = new Regex (@"^T[0-9]+\[(up|down);[0-9]+([.][0-9]{1,3})?s;[0-9]+([.][0-9]{1,3})?s;[0-9]+([.][0-9]{1,3})?s\]$");
@@ -33,18 +31,12 @@ namespace Lemoine.Cnc
       log = l;
     }
 
-    #region Get methods
     /// <summary>
     /// Get the current tool life data
     /// </summary>
     /// <returns></returns>
-    public ToolLifeData GetToolLifeData ()
-    {
-      return m_currentToolLifeData;
-    }
-    #endregion // Get methods
+    public ToolLifeData GetToolLifeData () => m_currentToolLifeData;
 
-    #region Process methods
     /// <summary>
     /// <see cref="IScenarioReader"/>
     /// </summary>
@@ -122,8 +114,8 @@ namespace Lemoine.Cnc
         m_currentToolLifeData[index][0].LifeType = ToolUnit.TimeSeconds;
         m_currentToolLifeData[index][0].LifeValue = ParseSeconds (lifeValueStr);
       }
-      catch (Exception) {
-        log.ErrorFormat ("FillToolDataSimple: invalid part '{0}'", strToolData);
+      catch (Exception ex) {
+        log.Error ($"FillToolDataSimple: invalid part {strToolData}", ex);
         return false;
       }
 
@@ -173,6 +165,5 @@ namespace Lemoine.Cnc
       ci.NumberFormat.NumberDecimalSeparator = ".";
       return double.Parse (str.Replace (',', '.'), ci);
     }
-    #endregion // Process methods
   }
 }

@@ -64,14 +64,14 @@ namespace Lemoine.Cnc
           int index = int.Parse (split[1]);
           string otherPart = String.Join (" ", split, 2, split.Length - 2);
           switch (split[0]) {
-          case "CREATE":
-            return CreateAlarm (index, otherPart);
-          case "DELETE":
-            return DeleteAlarm (index);
-          case "UPDATE":
-            return UpdateAlarm (index, otherPart);
-          default:
-            return false;
+            case "CREATE":
+              return CreateAlarm (index, otherPart);
+            case "DELETE":
+              return DeleteAlarm (index);
+            case "UPDATE":
+              return UpdateAlarmProperties (index, otherPart);
+            default:
+              return false;
           }
         }
       }
@@ -100,7 +100,16 @@ namespace Lemoine.Cnc
         m_currentCncAlarms[index].Message = match.Groups[5].Value;
 
         // Process the properties
-        UpdateAlarm (index, match.Groups[4].Value);
+        var propertiesTxt = match.Groups[6].Value.Trim ();
+        if (!string.IsNullOrEmpty (propertiesTxt)) {
+          try {
+            UpdateAlarmProperties (index, propertiesTxt);
+          }
+          catch (Exception ex) {
+            log.Error ($"CreateAlarm: ParseProperties for {propertiesTxt} in txt={txt} index={index} failed", ex);
+          }
+        }
+
         return true;
       }
       else {
@@ -108,10 +117,11 @@ namespace Lemoine.Cnc
       }
     }
 
-    bool UpdateAlarm (int index, string txt)
+    bool UpdateAlarmProperties (int index, string txt)
     {
       // Not created?
       if (!m_currentCncAlarms.ContainsKey (index)) {
+        log.Error ($"UpdateAlarm: index={index} not active => return false");
         return false;
       }
 
@@ -121,7 +131,7 @@ namespace Lemoine.Cnc
         properties = ParseProperties (txt);
       }
       catch (Exception ex) {
-        log.Error ($"UpdateAlarm: ParseProperties failed", ex);
+        log.Error ($"UpdateAlarm: ParseProperties for {txt} index={index} failed", ex);
         return false;
       }
       if (properties == null) {
@@ -154,8 +164,8 @@ namespace Lemoine.Cnc
         // Extract the key and the value
         var split2 = elt.Split ('=');
         if (split2.Length != 2) {
-          log.Error ($"ParseProperties: wrong property {elt}");
-          throw new Exception ("Wrong property [" + elt + "]");
+          log.Error ($"ParseProperties: wrong property {elt} in txt={txt}, omit it");
+          continue;
         }
 
         string key = split2[0].Trim (' ');
@@ -163,13 +173,13 @@ namespace Lemoine.Cnc
 
         // Check that the key is valid
         if (String.IsNullOrEmpty (key)) {
-          log.Error ($"ParseProperties: wrong key {elt} in property");
-          throw new Exception ("Wrong key in property [" + elt + "]");
+          log.Error ($"ParseProperties: wrong key {elt} in property txt={txt}, omit it");
+          continue;
         }
 
         if (properties.ContainsKey (key)) {
-          log.Error ($"ParseProperties: key {key} is duplicated");
-          throw new Exception ("Duplicated key [" + key + "]");
+          log.Error ($"ParseProperties: key {key} is duplicated in txt={txt}, omit it");
+          continue;
         }
 
         // Add the property
