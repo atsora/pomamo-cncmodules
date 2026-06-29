@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -55,15 +56,12 @@ namespace Lemoine.Cnc
   /// </summary>
   public sealed class EventCncValue : Lemoine.Cnc.BaseCncModule, Lemoine.Cnc.ICncModule
   {
-    #region Members
     int m_machineModuleId = 0;
     IMachineModule m_machineModule = null;
     bool m_error = false;
     IDictionary<string, EventCncValueStatus> m_status = new Dictionary<string, EventCncValueStatus> ();
     readonly ScriptOptions m_scriptOptions;
-    #endregion // Members
 
-    #region Getters / Setters
     /// <summary>
     /// Machine Module Id
     /// </summary>
@@ -80,9 +78,7 @@ namespace Lemoine.Cnc
     {
       get { return m_error; }
     }
-    #endregion // Getters / Setters
 
-    #region Constructors / Destructor / ToString methods
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -96,9 +92,7 @@ namespace Lemoine.Cnc
         })
         .AddImports (new string[] { "System" });
     }
-    #endregion // Constructors / Destructor / ToString methods
 
-    #region Methods
     /// <summary>
     /// Start method
     /// </summary>
@@ -107,9 +101,7 @@ namespace Lemoine.Cnc
       m_error = false;
 
       if (0 == m_machineModuleId) {
-        log.Error ("Start: " +
-                   "machineId is still 0 " +
-                   "=> return false");
+        log.Error ("Start: machineId is still 0 => return false");
         m_error = true;
         return false;
       }
@@ -120,9 +112,7 @@ namespace Lemoine.Cnc
             .FindByIdWithMonitoredMachine (m_machineModuleId);
         }
         if (null == m_machineModule) {
-          log.ErrorFormat ("Start: " +
-                           "Machine module with ID {0} does not exist",
-                           m_machineModuleId);
+          log.Error ($"Start: Machine module with ID {m_machineModuleId} does not exist");
           m_error = true;
           return false;
         }
@@ -146,36 +136,29 @@ namespace Lemoine.Cnc
     /// <param name="v"></param>
     public void AssociateCncValueToConfig (string param, object v)
     {
-      log.DebugFormat ("AssociateCncValueToConfig /B: " +
-                       "config={0}",
-                       param);
+      log.Debug ($"AssociateCncValueToConfig /B: config={param}");
 
       // - Get or create the status
       EventCncValueStatus status;
       if (false == m_status.TryGetValue (param, out status)) {
         // - Get the config
-        log.DebugFormat ("AssociateCncValueToConfig: " +
-                         "initialize the config for {0}",
-                         param);
+        if (log.IsDebugEnabled) {
+          log.Debug ($"AssociateCncValueToConfig: initialize the config for {param}");
+        }
         IEventCncValueConfig config;
         using (IDAOSession session = ModelDAOHelper.DAOFactory.OpenSession ()) {
           config = ModelDAOHelper.DAOFactory.EventCncValueConfigDAO.FindByName (param);
           // - Check the machine filter
           if ((null != config) && (null != config.MachineFilter)) {
             if (false == config.MachineFilter.IsMatch (m_machineModule.MonitoredMachine)) {
-              log.InfoFormat ("AssociateCncValueToConfig: " +
-                              "machine {0} does not match with the config {1}",
-                              m_machineModule.MonitoredMachine, param);
+              log.Info ($"AssociateCncValueToConfig: machine {m_machineModule.MonitoredMachine} does not match with the config {param}");
               config = null;
             }
           }
         }
         status = new EventCncValueStatus (config);
         if (null == status.Config) {
-          log.ErrorFormat ("AssociateCncValueToConfig: " +
-                           "configuration with name {0} does not exist or does not match the machine, " +
-                           "skip the configuration",
-                           param);
+          log.Error ($"AssociateCncValueToConfig: configuration with name {param} does not exist or does not match the machine skip the configuration");
           m_status[param] = null;
           return;
         }
@@ -205,19 +188,13 @@ namespace Lemoine.Cnc
       {
         try {
           if (!status.ConditionFunction.Invoke (v)) { // Condition is not checked => clear the active status and return
-            log.DebugFormat ("AssociateCncValueToConfig: " +
-                             "condition is not checked in {0} with value {1}, return",
-                             status.Config.Condition, v);
+            log.Debug ($"AssociateCncValueToConfig: condition is not checked in {status.Config.Condition} with value {v}, return");
             status.Clear ();
             return;
           }
         }
         catch (Exception ex2) {
-          log.ErrorFormat ("AssociateCncValueToConfig: " +
-                           "error in expression evaluation {0} with value {1}, " +
-                           "{2}",
-                           status.Config.Condition, v,
-                           ex2);
+          log.Error ($"AssociateCncValueToConfig: error in expression evaluation {status.Config.Condition} with value {v}", ex2);
           throw;
         }
       }
@@ -235,22 +212,18 @@ namespace Lemoine.Cnc
         status.CheckedBeginDateTime = DateTime.UtcNow;
       }
       if (status.Config.MinDuration <= age) {
-        log.InfoFormat ("AssociateCncValueToConfig: " +
-                        "min duration is checked => store the event");
+        log.Info ("AssociateCncValueToConfig: min duration is checked => store the event");
         StoreEvent (status, v, age);
       }
-      else {
-        log.DebugFormat ("AssociateCncValueToConfig: " +
-                         "condition is checked but age {0} < {1}",
-                         age, status.Config.MinDuration);
+      else if (log.IsDebugEnabled) {
+        log.Debug ($"AssociateCncValueToConfig: condition is checked but age {age} < {status.Config.MinDuration}");
       }
     }
 
     void StoreEvent (EventCncValueStatus status, object v, TimeSpan age)
     {
       if (status.Sent) {
-        log.DebugFormat ("StoreEvent: " +
-                         "the event has already been sent");
+        log.Debug ("StoreEvent: the event has already been sent");
         return;
       }
 
@@ -284,14 +257,11 @@ namespace Lemoine.Cnc
       // Get the status
       EventCncValueStatus status;
       if (false == m_status.TryGetValue (param, out status)) {
-        log.DebugFormat ("SendIfChanged: " +
-                         "no status skip it");
+        log.Debug ("SendIfChanged: no status skip it");
         return;
       }
       if (null == status.Config) {
-        log.ErrorFormat ("SendIfChanged: " +
-                         "configuration with name {0} does not exist or does not match the machine",
-                         param);
+        log.Error ($"SendIfChanged: configuration with name {param} does not exist or does not match the machine");
         return;
       }
 
@@ -320,7 +290,6 @@ namespace Lemoine.Cnc
         log = LogManager.GetLogger ($"Lemoine.Cnc.Out.EventCncValue.{this.CncAcquisitionId}.{m_machineModuleId}");
       }
     }
-    #endregion // Methods
 
     #region IDisposable implementation
     /// <summary>

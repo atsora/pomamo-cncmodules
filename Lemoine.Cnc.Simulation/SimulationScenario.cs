@@ -38,17 +38,14 @@ namespace Lemoine.Cnc
   /// </summary>
   public partial class SimulationScenario : BaseCncModule, ICncModule
   {
-    #region Members
     bool m_alreadyStarted = false;
     volatile bool m_stop = false;
     volatile IDictionary<char, IScenarioReader> m_readers = new Dictionary<char, IScenarioReader> ();
     readonly AutoResetEvent m_autoEvent = new AutoResetEvent (false);
     bool m_waitForEnd = false;
-    #endregion // Members
 
     static readonly Regex CHECK_TIME = new Regex (@"^(20|21|22|23|[01][0-9]|[0-9]):[0-5][0-9]:[0-5][0-9]$");
 
-    #region Getters / Setters
     /// <summary>
     /// Path of the scenario to read
     /// 
@@ -87,9 +84,7 @@ namespace Lemoine.Cnc
         }
       }
     }
-    #endregion // Getters / Setters
 
-    #region Constructors
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -113,9 +108,7 @@ namespace Lemoine.Cnc
       m_autoEvent.Set ();
       GC.SuppressFinalize (this);
     }
-    #endregion // Constructors
 
-    #region Scenario methods
     /// <summary>
     /// Start method (data begins to be read)
     /// </summary>
@@ -168,7 +161,12 @@ namespace Lemoine.Cnc
 
               // Process the line if it is not empty
               if (!string.IsNullOrEmpty (line)) {
-                ProcessLine (line);
+                try {
+                  ProcessLine (line);
+                }
+                catch (Exception ex) {
+                  log.Error ($"ReadingProgram: invalid line {line}, skip it", ex);
+                }
               }
             }
           }
@@ -192,11 +190,11 @@ namespace Lemoine.Cnc
       if (CHECK_TIME.IsMatch (line)) {
         Pause (line);
       }
-      else if (line.ToLower () == "wait") {
+      else if (line.ToLower ().Equals ("wait")) {
         Pause ();
       }
       else {
-        if (line.Length > 2 && line[1] == '>') {
+        if (line.Length > 2 && line[1].Equals ('>')) {
           if (log.IsDebugEnabled) {
             log.Debug ($"ProcessLine: line={line}");
           }
@@ -205,22 +203,17 @@ namespace Lemoine.Cnc
           var commandType = line.ToUpper ()[0];
           var command = line.Remove (0, 2).Trim (' ');
 
-          bool ok = false;
           if (!string.IsNullOrEmpty (command)) {
             lock (m_readers) {
               if (m_readers.ContainsKey (commandType)) {
-                ok = m_readers[commandType].ProcessCommand (command);
+                if (!m_readers[commandType].ProcessCommand (command)) { 
+                  log.Error ($"ProcessLine: invalid command '{command}' for type '{commandType}' => skip it");
+                }
               }
             }
           }
-
-          if (!ok) {
-            Error = true;
-            log.Error ($"ProcessLine: unknown command '{command}' => skip it");
-          }
         }
         else {
-          Error = true;
           log.Error ($"ProcessLine: no command type in '{line}' => skip it");
         }
       }
@@ -241,7 +234,6 @@ namespace Lemoine.Cnc
         m_autoEvent.WaitOne (); // Wait until the timer release the autoEvent
       }
       catch (Exception ex) {
-        Error = true;
         log.Error ($"Pause: invalid line '{strTime}' => skip it", ex);
       }
     }
@@ -253,6 +245,5 @@ namespace Lemoine.Cnc
       m_waitForEnd = true;
       m_autoEvent.WaitOne ();
     }
-    #endregion // Scenario methods
   }
 }

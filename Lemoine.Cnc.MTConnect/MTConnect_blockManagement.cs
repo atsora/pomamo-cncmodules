@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -15,16 +16,13 @@ namespace Lemoine.Cnc
   /// </summary>
   public partial class MTConnect
   {
-    #region Members
     List<string> m_blocks = new List <string> ();
     bool m_hasBlocks = false;
     Hashtable m_blockValues = new Hashtable ();
     string m_blockInstance = ""; // empty is for unknown
     long m_blockNextSequence = 0; // 0 is for unknown
     string m_programName = null;
-    #endregion // Members
     
-    #region Get methods
     /// <summary>
     /// Get an integer value in the blocks
     /// </summary>
@@ -52,9 +50,7 @@ namespace Lemoine.Cnc
                        result, key);
       return result;
     }
-    #endregion // Get methods
     
-    #region Private methods
     /// <summary>
     /// Get the latest block that contains the given key.
     /// If no such block has been found, null is returned.
@@ -230,6 +226,5 @@ namespace Lemoine.Cnc
       
       return;
     }
-    #endregion // Private methods
   }
 }

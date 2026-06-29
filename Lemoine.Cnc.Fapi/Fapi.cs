@@ -267,8 +267,19 @@ namespace Lemoine.Cnc
     {
       return double.Parse(this.GetStringParameter(param), new CultureInfo("en-US"));
     }
+
+    /// <summary>
+    /// Get a bool value: convert ON/OF to a boolean
+    /// </summary>
+    /// <param name="param">objectName (FAPI object name) or objectName/param1</param>
+    /// <returns></returns>
+    public bool GetBool (string param)
+    {
+      var s = this.GetString (param);
+      return s.Equals ("ON");
+    }
     #endregion // Get simple values
-    
+
     #region Get complex values
     /// <summary>
     /// Position (X, Y, Z and W)

@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -11,22 +12,15 @@ namespace Lemoine.Cnc
   /// <summary>
   /// Class to get a Perle IO input
   /// </summary>
-  public class PerleIO: AbstractSerial, Lemoine.Cnc.ICncModule
+  public class PerleIO : AbstractSerial, Lemoine.Cnc.ICncModule
   {
-    #region Members
-    bool error = false;
-    #endregion
+    bool m_error = false;
 
-    #region Getters / Setters
     /// <summary>
     /// Error ?
     /// </summary>
-    public bool Error {
-      get { return error; }
-    }
-    #endregion
-
-    #region Constructors / Destructor / ToString methods
+    public bool Error => m_error;
+ 
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -34,12 +28,10 @@ namespace Lemoine.Cnc
       : base ("Lemoine.Cnc.In.PerleIO")
     {
     }
-    
+
     // Note: the Dispose method is implemented in
     //       the base class AbstractSerial    
-    #endregion
 
-    #region Methods
     /// <summary>
     /// Get an I/O status given an I/O number
     /// 
@@ -56,15 +48,13 @@ namespace Lemoine.Cnc
         ioNumber = byte.Parse (param);
       }
       catch (Exception ex) {
-        log.ErrorFormat ("GetIO: " +
-                         "invalid param {0} for IO number, {1}",
-                         param, ex);
-        error = true;
+        log.Error ($"GetIO: invalid param {param} for IO number", ex);
+        m_error = true;
         throw ex;
       }
       return GetIO (ioNumber);
     }
-    
+
     /// <summary>
     /// Get an I/O status given an I/O number
     /// 
@@ -77,26 +67,18 @@ namespace Lemoine.Cnc
     public bool GetIO (byte ioNumber)
     {
       if (SerialPort.IsOpen == false) {
-        log.WarnFormat ("GetIO ({0}): " +
-                        "IO Com port is not opened, try to open it",
-                        ioNumber);
+        log.Warn ($"GetIO ({ioNumber}): IO Com port is not opened, try to open it");
         try {
-          SerialPort.Open();
+          SerialPort.Open ();
         }
         catch (Exception ex) {
-          log.ErrorFormat ("GetIO ({0}): " +
-                           "Open IO COM Exception {1}",
-                           ioNumber,
-                           ex.Message);
-          error = true;
+          log.Error ($"GetIO ({ioNumber}): Open IO COM Exception {ex.Message}", ex);
+          m_error = true;
           throw ex;
         }
         if (SerialPort.IsOpen == false) {
-          log.FatalFormat ("GetIO ({0}): " +
-                           "IO COM is not opened " +
-                           "even after successfully opening the port",
-                           ioNumber);
-          error = true;
+          log.Fatal ($"GetIO ({ioNumber}): IO COM is not opened even after successfully opening the port");
+          m_error = true;
           throw new Exception ("IO COM is not opened");
         }
       }
@@ -109,10 +91,11 @@ namespace Lemoine.Cnc
       // IONum = 5 is at address 6149 = 0x1805
       // IONum = 6 is at address 6150 = 0x1806
 
-      log.DebugFormat ("GetIO /B IO Number={0}",
-                       ioNumber);
+      if (log.IsDebugEnabled) {
+        log.Debug ($"GetIO /B IO Number={ioNumber}");
+      }
 
-      byte[] command = new byte[5] ;
+      byte[] command = new byte[5];
       // byte 0 : function type
       command[0] = 0x01; // coils (boolean register)
       // bytes 1 & 2 starting register adress (0x18IONum = 0x1801 -> 0x1806)
@@ -122,75 +105,68 @@ namespace Lemoine.Cnc
       command[3] = 0x00;
       command[4] = 0x01;
       try {
-        SerialPort.Write(command, 0, 5);
-        log.DebugFormat ("GetIO IONum={0}: " +
-                         "{1} has been written in IO Com",
-                         ioNumber, command);
+        SerialPort.Write (command, 0, 5);
+        if (log.IsDebugEnabled) {
+          log.Debug ($"GetIO IONum={ioNumber}: {command} has been written in IO Com");
+        }
       }
       catch (Exception ex) {
-        log.ErrorFormat ("GetIO IONum={0}: " +
-                         "Write exception {1}",
-                         ioNumber, ex.Message);
+        log.Error ($"GetIO IONum={ioNumber}: Write exception {ex.Message}", ex);
         SerialPort.Close ();
-        error = true;
+        m_error = true;
         throw ex;
       }
-      
-      const int MAX_BYTES_RES = 4 ;
-      byte[] response = new byte[MAX_BYTES_RES] ;
-      int totalread = 0 ;
-      
+
+      const int MAX_BYTES_RES = 4;
+      byte[] response = new byte[MAX_BYTES_RES];
+      int totalread = 0;
+
       // Normally we should receive 3 bytes as a reply.
       do {
         try {
           int nb = SerialPort.Read (command, 0, MAX_BYTES_RES);
-          log.DebugFormat ("GetIO IONum={0}: " +
-                           "read {1} bytes",
-                           ioNumber, nb);
-          for (int i=0; i < nb ; i++) {
-            log.DebugFormat ("GetIO IONum={0}: " +
-                             "response[{1}] = {2:X} ({2})",
-                             ioNumber, totalread, command[i]);
-            response[totalread] = command[i] ; totalread++;
+          if (log.IsDebugEnabled) {
+            log.Debug ($"GetIO IONum={ioNumber}: read {nb} bytes");
+          }
+          for (int i = 0; i < nb; i++) {
+            if (log.IsDebugEnabled) {
+              log.Debug ($"GetIO IONum={ioNumber}: response[{totalread}] = {command[i]:X} ({command[i]})");
+            }
+            response[totalread] = command[i]; totalread++;
             if (totalread >= MAX_BYTES_RES) {
-              break ;
+              break;
             }
           }
           if (totalread >= MAX_BYTES_RES) {
-            break ;
+            break;
           }
         }
         catch (Exception ex) {
-          log.ErrorFormat ("GetIO IONum={0}: " +
-                           "Read exception {1}",
-                           ioNumber, ex.Message);
+          log.Error ($"GetIO IONum={ioNumber}: Read exception {ex.Message}", ex);
           SerialPort.Close ();
-          error = true;
+          m_error = true;
           throw ex;
         }
-        log.DebugFormat ("GetIO IONum={0}: " +
-                         "Bytes to read {1}",
-                         ioNumber, SerialPort.BytesToRead);
+        if (log.IsDebugEnabled) {
+          log.Debug ($"GetIO IONum={ioNumber}: Bytes to read {SerialPort.BytesToRead}");
+        }
       }
-      while (SerialPort.BytesToRead > 0) ;
-      
+      while (SerialPort.BytesToRead > 0);
+
       if (response[0] > 0x80) { // Error !
-        log.ErrorFormat ("GetIO IONum={0}: " +
-                         "got error number={1}",
-                         ioNumber,
-                         response[1]);
-        GetErrorMessage (response [1]);
-        error = true;
+        log.Error ($"GetIO IONum={ioNumber}: got error number={response[1]}");
+        GetErrorMessage (response[1]);
+        m_error = true;
         throw new Exception ("Perle device error");
       }
 
-      log.DebugFormat ("GetIO /E IONum={0}: " +
-                       "ended with response[2] = {1}",
-                       ioNumber, response [2]);
-      
-      return (response[2] != 0) ;
+      if (log.IsDebugEnabled) {
+        log.Debug ($"GetIO /E IONum={ioNumber}: ended with response[2] = {response[2]}");
+      }
+
+      return (response[2] != 0);
     }
-    
+
     /// <summary>
     /// Get the value of an analog I/O given an I/O number
     /// 
@@ -206,15 +182,13 @@ namespace Lemoine.Cnc
         ioNumber = byte.Parse (param);
       }
       catch (Exception ex) {
-        log.ErrorFormat ("GetAnalogIO: " +
-                         "invalid param {0} for IO number, {1}",
-                         param, ex);
-        error = true;
+        log.Error ($"GetAnalogIO: invalid param {param} for IO number", ex);
+        m_error = true;
         throw ex;
       }
       return GetAnalogIO (ioNumber);
     }
-    
+
     /// <summary>
     /// Get the value of an analog I/O given an I/O number
     /// 
@@ -226,26 +200,18 @@ namespace Lemoine.Cnc
     public double GetAnalogIO (byte ioNumber)
     {
       if (SerialPort.IsOpen == false) {
-        log.WarnFormat ("GetAnalogIO ({0}): " +
-                        "IO Com port is not opened, try to open it",
-                        ioNumber);
+        log.Warn ($"GetAnalogIO ({ioNumber}): IO Com port is not opened, try to open it");
         try {
-          SerialPort.Open();
+          SerialPort.Open ();
         }
         catch (Exception ex) {
-          log.ErrorFormat ("GetAnalogIO ({0}): " +
-                           "Open IO COM Exception {1}",
-                           ioNumber,
-                           ex.Message);
-          error = true;
+          log.Error ($"GetAnalogIO ({ioNumber}): Open IO COM Exception {ex.Message}", ex);
+          m_error = true;
           throw ex;
         }
         if (SerialPort.IsOpen == false) {
-          log.FatalFormat ("GetAnalogIO ({0}): " +
-                           "IO COM is not opened " +
-                           "even after successfully opening the port",
-                           ioNumber);
-          error = true;
+          log.Fatal ($"GetAnalogIO ({ioNumber}): IO COM is not opened even after successfully opening the port");
+          m_error = true;
           throw new Exception ("IO COM is not opened");
         }
       }
@@ -253,154 +219,125 @@ namespace Lemoine.Cnc
       // IONum = 2 is at adress 2118 = 0x0846
       // IONum = 3 is at adress 2150 = 0x0866
       // IONum = 4 is at adress 2182 = 0x0886
-      log.DebugFormat ("GetAnalogIO /B IO Number={0}",
-                       ioNumber);
+      if (log.IsDebugEnabled) {
+        log.Debug ($"GetAnalogIO /B IO Number={ioNumber}");
+      }
 
-      byte[] command = new byte[5] ;
+      byte[] command = new byte[5];
       // byte 0 : function type
       command[0] = 0x04; // read input registers
       // bytes 1 & 2 starting register adress
       command[1] = 0x08;
       switch (ioNumber) {
         case 1:
-          command [2] = 0x26;
+          command[2] = 0x26;
           break;
         case 2:
-          command [2] = 0x46;
+          command[2] = 0x46;
           break;
         case 3:
-          command [2] = 0x66;
+          command[2] = 0x66;
           break;
         case 4:
-          command [2] = 0x86;
+          command[2] = 0x86;
           break;
         default:
-          log.ErrorFormat ("GetAnalogIO: " +
-                           "I/O Number={0} > 4 is not supported",
-                           ioNumber);
+          log.Error ($"GetAnalogIO: I/O Number={ioNumber} > 4 is not supported");
           throw new ArgumentException ("Invalid I/O number");
       }
       // bytes 3 & 4 number of register to read = 1 (0x0001)
       command[3] = 0x00;
       command[4] = 0x01;
       try {
-        SerialPort.Write(command, 0, 5);
-        log.DebugFormat ("GetAnalogIO IONum={0}: " +
-                         "{1} has been written in IO Com",
-                         ioNumber, command);
+        SerialPort.Write (command, 0, 5);
+        if (log.IsDebugEnabled) {
+          log.Debug ($"GetAnalogIO IONum={ioNumber}: {command} has been written in IO Com");
+        }
       }
       catch (Exception ex) {
-        log.ErrorFormat ("GetAnalogIO IONum={0}: " +
-                         "Write exception {1}",
-                         ioNumber, ex.Message);
+        log.Error ($"GetAnalogIO IONum={ioNumber}: Write exception {ex.Message}", ex);
         SerialPort.Close ();
-        error = true;
+        m_error = true;
         throw ex;
       }
-      
-      const int MAX_BYTES_RES = 4 ;
-      byte[] response = new byte[MAX_BYTES_RES] ;
-      int totalread = 0 ;
-      
+
+      const int MAX_BYTES_RES = 4;
+      byte[] response = new byte[MAX_BYTES_RES];
+      int totalread = 0;
+
       // Normally we should receive 3 bytes as a reply.
       do {
         try {
           int nb = SerialPort.Read (command, 0, MAX_BYTES_RES);
-          log.DebugFormat ("GetAnalogIO IONum={0}: " +
-                           "read {1} bytes",
-                           ioNumber, nb);
-          for (int i=0; i < nb ; i++) {
-            log.DebugFormat ("GetAnalogIO IONum={0}: " +
-                             "response[{1}] = {2:X} ({2})",
-                             ioNumber, totalread, command[i]);
-            response[totalread] = command[i] ; totalread++;
+          if (log.IsDebugEnabled) {
+            log.Debug ($"GetAnalogIO IONum={ioNumber}: read {nb} bytes");
+          }
+          for (int i = 0; i < nb; i++) {
+            if (log.IsDebugEnabled) {
+              log.Debug ($"GetAnalogIO IONum={ioNumber}: response[{totalread}] = {command[i]:X} ({command[i]})");
+            }
+            response[totalread] = command[i]; totalread++;
             if (totalread >= MAX_BYTES_RES) {
-              break ;
+              break;
             }
           }
           if (totalread >= MAX_BYTES_RES) {
-            break ;
+            break;
           }
         }
         catch (Exception ex) {
-          log.ErrorFormat ("GetAnalogIO IONum={0}: " +
-                           "Read exception {1}",
-                           ioNumber, ex.Message);
+          log.Error ($"GetAnalogIO IONum={ioNumber}: Read exception", ex);
           SerialPort.Close ();
-          error = true;
+          m_error = true;
           throw ex;
         }
-        log.DebugFormat ("GetAnalogIO IONum={0}: " +
-                         "Bytes to read {1}",
-                         ioNumber, SerialPort.BytesToRead);
+        if (log.IsDebugEnabled) {
+          log.Debug ($"GetAnalogIO IONum={ioNumber}: Bytes to read {SerialPort.BytesToRead}");
+        }
       }
-      while (SerialPort.BytesToRead > 0) ;
+      while (SerialPort.BytesToRead > 0);
 
       if (response[0] > 0x80) { // Error !
-        log.ErrorFormat ("GetIO IONum={0}: " +
-                         "got error number={1}",
-                         ioNumber,
-                         response[1]);
-        GetErrorMessage (response [1]);
-        error = true;
+        log.Error ($"GetIO IONum={ioNumber}: got error number={response[1]}");
+        GetErrorMessage (response[1]);
+        m_error = true;
         throw new Exception ("Perle device error");
       }
 
-      log.DebugFormat ("GetAnalogIO /E IONum={0}: " +
-                       "ended with response [2] = {1:X}, response [3] = {2:X}",
-                       ioNumber, response [2], response [3]);
-      
-      return (double) (response [2] * 0x100 + response [3]);
+      if (log.IsDebugEnabled) {
+        log.Debug ($"GetAnalogIO /E IONum={ioNumber}: ended with response [2] = {response[2]:X}, response [3] = {response[3]:X}");
+      }
+
+      return (double)(response[2] * 0x100 + response[3]);
     }
-    
+
     /// <summary>
     /// Start method: reset the error property
     /// </summary>
     public void Start ()
     {
-      error = false;
+      m_error = false;
     }
-    
+
     private void GetErrorMessage (byte errorCode)
     {
       switch (errorCode) {
         case 0x01:
-          log.Error ("GetErrorMessage errorCode=1: " +
-                     "Illegal Function, " +
-                     "The function code received " +
-                     "in the query is not " +
-                     "an allowable action " +
-                     "for the server (or slave).");
+          log.Error ($"GetErrorMessage errorCode=1: Illegal Function, The function code received in the query is not an allowable action for the server (or slave).");
           break;
         case 0x02:
-          log.Error ("GetErrorMessage errorCode=2: " +
-                     "Illegal Data, " +
-                     "The data address received " +
-                     "in the query is not " +
-                     "an allowable address " +
-                     "for the server (or slave).");
+          log.Error ($"GetErrorMessage errorCode=2: Illegal Data, The data address received in the query is not an allowable address for the server (or slave).");
           break;
         case 0x03:
-          log.Error ("GetErrorMessage errorCode=3: " +
-                     "Illegal Data Value, " +
-                     "A value contained in the query data field " +
-                     "is not an allowable value " +
-                     "for the server (or slave).");
+          log.Error ($"GetErrorMessage errorCode=3: Illegal Data Value, A value contained in the query data field is not an allowable value for the server (or slave).");
           break;
         case 0x04:
-          log.Error ("GetErrorMessage errorCode=4: " +
-                     "Slave Device, " +
-                     "An unrecoverable error occured while " +
-                     "the server (or slave) was " +
-                     "attempting to perform the requested action.");
+          log.Error ($"GetErrorMessage errorCode=4: Slave Device, An unrecoverable error occured while the server (or slave) was attempting to perform the requested action.");
           break;
         default:
-          log.ErrorFormat ("GetErrorMessage errorCode={0}: " +
-                           "unknown error",
-                           errorCode);
+          log.Error ($"GetErrorMessage errorCode={errorCode}: unknown error");
           break;
       }
     }
-    #endregion
   }
 }

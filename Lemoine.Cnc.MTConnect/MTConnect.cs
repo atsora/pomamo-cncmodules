@@ -69,14 +69,12 @@ namespace Lemoine.Cnc
         foreach (string xmlNamespace in xmlNamespaces) {
           string[] xmlNamespaceKeyValue = xmlNamespace.Split ('=');
           if (xmlNamespaceKeyValue.Length != 2) {
-            log.ErrorFormat ("Xmlns.set: " +
-                             "invalid value {0}",
-                             xmlNamespace);
+            log.Error ($"Xmlns.set: invalid value {xmlNamespace}");
             throw new ArgumentException ("Bad XML namespace");
           }
-          log.DebugFormat ("Xmlns.set: " +
-                           "add prefix={0} uri={1}",
-                           xmlNamespaceKeyValue[0], xmlNamespaceKeyValue[1]);
+          if (log.IsDebugEnabled) {
+            log.Debug ($"Xmlns.set: add prefix={xmlNamespaceKeyValue[0]} uri={xmlNamespaceKeyValue[1]}");
+          }
           m_xmlns[xmlNamespaceKeyValue[0]] = xmlNamespaceKeyValue[1];
         }
       }

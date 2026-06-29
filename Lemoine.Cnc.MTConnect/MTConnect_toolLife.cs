@@ -1,4 +1,5 @@
 // Copyright (C) 2009-2023 Lemoine Automation Technologies
+// Copyright (C) 2026 Atsora Solutions
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -16,47 +17,48 @@ namespace Lemoine.Cnc
   {
     static readonly string DEFAULT_MTCONNECTASSETS_NAMESPACE_PREFIX = "a";
     static readonly string DEFAULT_MTCONNECTASSETS_NAMESPACE = "urn:mtconnect.org:MTConnectAssets:1.3";
-    
-    #region Members
+
     string m_mtconnectAssetsPrefix = DEFAULT_MTCONNECTASSETS_NAMESPACE_PREFIX;
     XPathNavigator m_assetsNavigator;
     XmlNamespaceManager m_assetsNs = null;
     bool m_assetsOk = false;
     bool m_toolLifeManagement = false;
     bool m_useToolNumberAsToolPot = false;
-    #endregion // Members
-    
-    #region Getters / Setters
+
     /// <summary>
     /// True if tool life management is enabled
     /// (part "assets" will be read)
     /// </summary>
-    public string ToolLifeManagement {
-      get { return m_toolLifeManagement ? "True" : "False"; }
+    public string ToolLifeManagement
+    {
+      get => m_toolLifeManagement ? "True" : "False";
       set {
-        m_toolLifeManagement = string.Equals(value, "True", StringComparison.CurrentCultureIgnoreCase); }
+        m_toolLifeManagement = string.Equals (value, "True", StringComparison.CurrentCultureIgnoreCase);
+      }
     }
-    
+
     /// <summary>
     /// MTConnectStreams namespace prefix to use for assets (tool life data)
     /// Default is "a"
     /// </summary>
-    public string MTConnectAssetsPrefix {
-      get { return m_mtconnectAssetsPrefix; }
+    public string MTConnectAssetsPrefix
+    {
+      get => m_mtconnectAssetsPrefix;
       set { m_mtconnectAssetsPrefix = value; }
     }
-    
+
     /// <summary>
     /// Get an object fully describing the life of all tools
     /// </summary>
-    public ToolLifeData ToolLifeData {
+    public ToolLifeData ToolLifeData
+    {
       get {
         if (!m_assetsOk) {
           log.ErrorFormat ("ToolLifeData: assets were not read");
           throw new Exception ("ToolLifeData: assets were not read");
         }
-        
-        return GetToolManagementData();
+
+        return GetToolManagementData ();
       }
     }
 
@@ -66,17 +68,15 @@ namespace Lemoine.Cnc
     /// </summary>
     public bool UseToolNumberAsToolPot
     {
-      get { return m_useToolNumberAsToolPot; }
+      get => m_useToolNumberAsToolPot;
       set { m_useToolNumberAsToolPot = value; }
     }
-
-    #endregion // Getters / Setters
 
     #region Private methods
     void StartAssets ()
     {
       m_assetsOk = false;
-      
+
       // If tool life not needed, we return immediately
       if (!m_toolLifeManagement) {
         return;
@@ -84,95 +84,97 @@ namespace Lemoine.Cnc
 
       try {
         // Create a navigator for the assets
-        var document = new XPathDocument(Url.Replace("current", "assets"));
-        m_assetsNavigator = document.CreateNavigator();
-        
+        var document = new XPathDocument (Url.Replace ("current", "assets"));
+        m_assetsNavigator = document.CreateNavigator ();
+
         // Namespace
-        m_assetsNs = CreateNamespace(m_assetsNavigator, m_mtconnectAssetsPrefix, DEFAULT_MTCONNECTASSETS_NAMESPACE);
-        
+        m_assetsNs = CreateNamespace (m_assetsNavigator, m_mtconnectAssetsPrefix, DEFAULT_MTCONNECTASSETS_NAMESPACE);
+
         m_assetsOk = true;
-      } catch (Exception e) {
-        log.ErrorFormat("MTConnect: failed to create the asset document using path {0}: {1}",
-                        Url.Replace("current", "assets"), e);
+      }
+      catch (Exception ex) {
+        var path = Url.Replace ("current", "assets");
+        log.Error ($"MTConnect: failed to create the asset document using path {path}", ex);
       }
     }
-    
-    ToolLifeData GetToolManagementData()
+
+    ToolLifeData GetToolManagementData ()
     {
-      var toolLifeData = new ToolLifeData();
-      
+      var toolLifeData = new ToolLifeData ();
+
       // Get all cutting tool nodes
       string path = "//" + MTConnectAssetsPrefix + ":CuttingTool";
       XPathNodeIterator nodeIterator = (m_assetsNs == null) ?
-        m_assetsNavigator.Select(path) :
-        m_assetsNavigator.Select(path, m_assetsNs);
-      
+        m_assetsNavigator.Select (path) :
+        m_assetsNavigator.Select (path, m_assetsNs);
+
       // Process them
-      log.DebugFormat("MTConnect: got {0} CuttingTool from url {1}", nodeIterator.Count, m_assetsNavigator.BaseURI);
-      while (nodeIterator.MoveNext()) {
+      log.DebugFormat ("MTConnect: got {0} CuttingTool from url {1}", nodeIterator.Count, m_assetsNavigator.BaseURI);
+      while (nodeIterator.MoveNext ()) {
         ProcessCuttingTool (toolLifeData, nodeIterator.Current);
       }
 
       return toolLifeData;
     }
-    
-    void ProcessCuttingTool(ToolLifeData toolLifeData, XPathNavigator cuttingToolNavigator)
+
+    void ProcessCuttingTool (ToolLifeData toolLifeData, XPathNavigator cuttingToolNavigator)
     {
       // Tool id
-      string toolId = cuttingToolNavigator.GetAttribute("serialNumber", "");
-      
+      string toolId = cuttingToolNavigator.GetAttribute ("serialNumber", "");
+
       // Get all CuttingToolLifeCycle nodes
       string path = MTConnectAssetsPrefix + ":CuttingToolLifeCycle";
       XPathNodeIterator nodeIterator = (m_assetsNs == null) ?
-        cuttingToolNavigator.Select(path) :
-        cuttingToolNavigator.Select(path, m_assetsNs);
-      
+        cuttingToolNavigator.Select (path) :
+        cuttingToolNavigator.Select (path, m_assetsNs);
+
       // Process them
-      log.DebugFormat("MTConnect: got {0} CuttingToolLifeCycle", nodeIterator.Count);
+      log.DebugFormat ("MTConnect: got {0} CuttingToolLifeCycle", nodeIterator.Count);
       int pos = 0;
-      while (nodeIterator.MoveNext()) {
-        ProcessCuttingToolLifeCycle(toolLifeData, nodeIterator.Current, toolId +
+      while (nodeIterator.MoveNext ()) {
+        ProcessCuttingToolLifeCycle (toolLifeData, nodeIterator.Current, toolId +
                                     (pos > 0 ? "." + pos : ""));
         pos++; // Just in case there are several "CuttingToolLifeCycle"
       }
     }
-    
-    void ProcessCuttingToolLifeCycle(ToolLifeData toolLifeData, XPathNavigator ctlcNavigator, string toolId)
+
+    void ProcessCuttingToolLifeCycle (ToolLifeData toolLifeData, XPathNavigator ctlcNavigator, string toolId)
     {
       try {
         // Tool number
-        string val = GetValidValue(
+        string val = GetValidValue (
           m_assetsNs == null ?
-          ctlcNavigator.SelectSingleNode(MTConnectAssetsPrefix + ":ProgramToolNumber") :
-          ctlcNavigator.SelectSingleNode(MTConnectAssetsPrefix + ":ProgramToolNumber", m_assetsNs));
-        int toolNumber = int.Parse(val);
-        
+          ctlcNavigator.SelectSingleNode (MTConnectAssetsPrefix + ":ProgramToolNumber") :
+          ctlcNavigator.SelectSingleNode (MTConnectAssetsPrefix + ":ProgramToolNumber", m_assetsNs));
+        int toolNumber = int.Parse (val);
+
         // Pot number
         int toolPot = 0;
         int toolMagazine = 0;
         try {
-          val = GetValidValue(
+          val = GetValidValue (
             m_assetsNs == null ?
-            ctlcNavigator.SelectSingleNode(MTConnectAssetsPrefix + ":Location[@type='POT' or @type='STATION']") :
-            ctlcNavigator.SelectSingleNode(MTConnectAssetsPrefix + ":Location[@type='POT' or @type='STATION']", m_assetsNs));
-          toolPot = int.Parse(val);
-          
+            ctlcNavigator.SelectSingleNode (MTConnectAssetsPrefix + ":Location[@type='POT' or @type='STATION']") :
+            ctlcNavigator.SelectSingleNode (MTConnectAssetsPrefix + ":Location[@type='POT' or @type='STATION']", m_assetsNs));
+          toolPot = int.Parse (val);
+
           // Magazine number
-          val = GetValidValue(
+          val = GetValidValue (
             m_assetsNs == null ?
-            ctlcNavigator.SelectSingleNode(MTConnectAssetsPrefix + ":ProgramToolGroup") :
-            ctlcNavigator.SelectSingleNode(MTConnectAssetsPrefix + ":ProgramToolGroup", m_assetsNs));
-          toolMagazine = int.Parse(val);
-        } catch (Exception e) {
-          log.ErrorFormat("MTConnect toollife: couldn't parse the position of T{0}: {1}", toolNumber, e);
+            ctlcNavigator.SelectSingleNode (MTConnectAssetsPrefix + ":ProgramToolGroup") :
+            ctlcNavigator.SelectSingleNode (MTConnectAssetsPrefix + ":ProgramToolGroup", m_assetsNs));
+          toolMagazine = int.Parse (val);
         }
-        
+        catch (Exception ex) {
+          log.Error ($"MTConnect toollife: couldn't parse the position of T{toolNumber}", ex);
+        }
+
         // Status
-        var status = GetStatus(ctlcNavigator);
-        
+        var status = GetStatus (ctlcNavigator);
+
         // Store the position
         int toolIndex = toolLifeData.ToolNumber;
-        toolLifeData.AddTool();
+        toolLifeData.AddTool ();
         toolLifeData[toolIndex].ToolNumber = toolNumber.ToString ();
         toolLifeData[toolIndex].ToolId = toolId;
         if (m_useToolNumberAsToolPot) {
@@ -183,36 +185,38 @@ namespace Lemoine.Cnc
         }
         toolLifeData[toolIndex].MagazineNumber = toolMagazine;
         toolLifeData[toolIndex].ToolState = status;
-        
+
         // Find "ToolLife" elements and process them
         string path = MTConnectAssetsPrefix + ":ToolLife";
         XPathNodeIterator nodeIterator = (m_assetsNs == null) ?
-          ctlcNavigator.Select(path) :
-          ctlcNavigator.Select(path, m_assetsNs);
+          ctlcNavigator.Select (path) :
+          ctlcNavigator.Select (path, m_assetsNs);
         try {
-          log.DebugFormat("MTConnect: got {0} ToolLife", nodeIterator.Count);
-          while (nodeIterator.MoveNext()) {
+          log.DebugFormat ("MTConnect: got {0} ToolLife", nodeIterator.Count);
+          while (nodeIterator.MoveNext ()) {
             ProcessToolLife (toolLifeData, toolIndex, nodeIterator.Current);
           }
-        } catch (Exception e) {
-          log.ErrorFormat("MTConnect.ProcessCuttingToolLifeCycle: couldn't read tool life: {0}", e);
         }
-      } catch (Exception e) {
-        log.ErrorFormat("MTConnect.ProcessCuttingToolLifeCycle: couldn't read: {0}", e);
+        catch (Exception ex) {
+          log.Error ("MTConnect.ProcessCuttingToolLifeCycle: couldn't read tool life", ex);
+        }
+      }
+      catch (Exception e) {
+        log.ErrorFormat ("MTConnect.ProcessCuttingToolLifeCycle: couldn't read: {0}", e);
       }
     }
-    
-    Lemoine.Core.SharedData.ToolState GetStatus(XPathNavigator ctlcNavigator)
+
+    Lemoine.Core.SharedData.ToolState GetStatus (XPathNavigator ctlcNavigator)
     {
       // Retrieve the different status
       string path = MTConnectAssetsPrefix + ":CutterStatus/" + MTConnectAssetsPrefix + ":Status";
       XPathNodeIterator nodeIterator = (m_assetsNs == null) ?
-        ctlcNavigator.Select(path) :
-        ctlcNavigator.Select(path, m_assetsNs);
-      
-      var status = new List<string>();
-      while (nodeIterator.MoveNext()) {
-        status.Add(nodeIterator.Current.Value);
+        ctlcNavigator.Select (path) :
+        ctlcNavigator.Select (path, m_assetsNs);
+
+      var status = new List<string> ();
+      while (nodeIterator.MoveNext ()) {
+        status.Add (nodeIterator.Current.Value);
       }
 
       // Translate into a ToolState
@@ -251,21 +255,22 @@ namespace Lemoine.Cnc
             break;
           case "BROKEN":
             break;
-          default: case "UNKNOWN":
+          default:
+          case "UNKNOWN":
             translatedStatus = Lemoine.Core.SharedData.ToolState.Unknown;
             break;
         }
       }
-      
+
       return translatedStatus;
     }
-    
-    void ProcessToolLife(ToolLifeData toolLifeData, int toolIndex, XPathNavigator ctlcNavigator)
+
+    void ProcessToolLife (ToolLifeData toolLifeData, int toolIndex, XPathNavigator ctlcNavigator)
     {
       // Direction (mandatory)
-      string directionStr = ctlcNavigator.GetAttribute("countDirection", "");
-      if (String.IsNullOrEmpty(directionStr)) {
-        log.Warn("MTConnect.ProcessToolLife: no direction provided");
+      string directionStr = ctlcNavigator.GetAttribute ("countDirection", "");
+      if (String.IsNullOrEmpty (directionStr)) {
+        log.Warn ("MTConnect.ProcessToolLife: no direction provided");
         return;
       }
       var direction = Lemoine.Core.SharedData.ToolLifeDirection.Unknown;
@@ -277,14 +282,14 @@ namespace Lemoine.Cnc
           direction = Lemoine.Core.SharedData.ToolLifeDirection.Up;
           break;
         default:
-          log.WarnFormat("MTConnect.ProcessToolLife: unknown direction '{0}' provided", directionStr);
+          log.WarnFormat ("MTConnect.ProcessToolLife: unknown direction '{0}' provided", directionStr);
           return;
       }
-      
+
       // Type
-      string typeStr = ctlcNavigator.GetAttribute("type", "");
+      string typeStr = ctlcNavigator.GetAttribute ("type", "");
       var type = Lemoine.Core.SharedData.ToolUnit.Unknown;
-      if (!String.IsNullOrEmpty(typeStr)) {
+      if (!String.IsNullOrEmpty (typeStr)) {
         switch (typeStr) {
           case "MINUTES":
             type = Lemoine.Core.SharedData.ToolUnit.TimeSeconds; // then multiplication by 60
@@ -296,34 +301,35 @@ namespace Lemoine.Cnc
             type = Lemoine.Core.SharedData.ToolUnit.Wear;
             break;
           default:
-            log.WarnFormat("MTConnect.ProcessToolLife: unknown type '{0}' provided", typeStr);
+            log.WarnFormat ("MTConnect.ProcessToolLife: unknown type '{0}' provided", typeStr);
             break;
         }
       }
-      
+
       // Limit
       double? limit = null;
       if (direction == Lemoine.Core.SharedData.ToolLifeDirection.Down) {
-        string limitStr = ctlcNavigator.GetAttribute("initial", "");
-        if (string.IsNullOrEmpty(limitStr)) {
-          limitStr = ctlcNavigator.GetAttribute("limit", "");
+        string limitStr = ctlcNavigator.GetAttribute ("initial", "");
+        if (string.IsNullOrEmpty (limitStr)) {
+          limitStr = ctlcNavigator.GetAttribute ("limit", "");
         }
 
-        if (!string.IsNullOrEmpty(limitStr)) {
-          limit = double.Parse(limitStr);
-        }
-      } else {
-        string limitStr = ctlcNavigator.GetAttribute("limit", "");
-        if (!string.IsNullOrEmpty(limitStr)) {
-          limit = double.Parse(limitStr);
+        if (!string.IsNullOrEmpty (limitStr)) {
+          limit = double.Parse (limitStr);
         }
       }
-      
+      else {
+        string limitStr = ctlcNavigator.GetAttribute ("limit", "");
+        if (!string.IsNullOrEmpty (limitStr)) {
+          limit = double.Parse (limitStr);
+        }
+      }
+
       // Warning
-      string warningStr = ctlcNavigator.GetAttribute("warning", "");
+      string warningStr = ctlcNavigator.GetAttribute ("warning", "");
       double? warning = null;
-      if (!string.IsNullOrEmpty(warningStr)) {
-        warning = double.Parse(warningStr);
+      if (!string.IsNullOrEmpty (warningStr)) {
+        warning = double.Parse (warningStr);
       }
 
       // Determine the offset for the warning
@@ -334,13 +340,13 @@ namespace Lemoine.Cnc
 
       // Current
       string currentStr = ctlcNavigator.InnerXml;
-      double current = double.Parse(ctlcNavigator.Value);
+      double current = double.Parse (ctlcNavigator.Value);
       if (type == Lemoine.Core.SharedData.ToolUnit.TimeSeconds) {
         current *= 60;
       }
 
       int toolLifeIndex = toolLifeData[toolIndex].LifeDescriptionNumber;
-      toolLifeData[toolIndex].AddLifeDescription();
+      toolLifeData[toolIndex].AddLifeDescription ();
       toolLifeData[toolIndex][toolLifeIndex].LifeDirection = direction;
       toolLifeData[toolIndex][toolLifeIndex].LifeType = type;
       toolLifeData[toolIndex][toolLifeIndex].LifeWarningOffset = warning;
