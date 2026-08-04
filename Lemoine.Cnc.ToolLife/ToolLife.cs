@@ -435,6 +435,7 @@ namespace Lemoine.Cnc
           ld.LifeDirection);
         tl.Value = ld.LifeValue;
         tl.Limit = ld.LifeLimit;
+        tl.CycleDelta = ld.CycleDelta;
 
         // Warnings are converted into an absolute value
         if (ld.LifeWarningOffset != null && ld.LifeWarningOffset.HasValue) {
@@ -613,6 +614,7 @@ namespace Lemoine.Cnc
       // We update the ToolLife
       life.Value = ld.LifeValue;
       life.Limit = ld.LifeLimit;
+      life.CycleDelta = ld.CycleDelta;
 
       // Warning are converted into an absolute value
       if (ld.LifeWarningOffset.HasValue) {
@@ -781,6 +783,7 @@ namespace Lemoine.Cnc
       // We update the ToolLife
       life.Value = ld.LifeValue;
       life.Limit = ld.LifeLimit;
+      life.CycleDelta = ld.CycleDelta;
 
       // Warning are converted into an absolute value
       if (ld.LifeWarningOffset.HasValue) {
