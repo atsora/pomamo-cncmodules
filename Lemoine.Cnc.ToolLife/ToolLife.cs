@@ -35,7 +35,6 @@ namespace Lemoine.Cnc
     /// </summary>
     public double m_percentForResetValue;
 
-    #region Members
     bool m_isInitialized = false;
     int m_machineId = 0;
     int m_machineModuleId = 0;
@@ -55,9 +54,7 @@ namespace Lemoine.Cnc
     // Machine Observation State (if any) being the first element of the list
     readonly IDictionary<EventToolLifeType, IList<IEventToolLifeConfig>> m_toolLifeEventConfigs =
       new Dictionary<EventToolLifeType, IList<IEventToolLifeConfig>> ();
-    #endregion // Members
 
-    #region Getters / Setters
     /// <summary>
     /// Machine Id
     /// </summary>
@@ -102,9 +99,7 @@ namespace Lemoine.Cnc
     /// Default is false;
     /// </summary>
     public bool KeepRemovedTools { get; set; }
-    #endregion // Getters / Setters
 
-    #region Constructors
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -114,9 +109,7 @@ namespace Lemoine.Cnc
       m_offsetForResetValue = Lemoine.Info.ConfigSet.LoadAndGet<double> (OFFSET_FOR_RESET_KEY, OFFSET_FOR_RESET_DEFAULT);
       m_percentForResetValue = Lemoine.Info.ConfigSet.LoadAndGet<double> (PERCENT_FOR_RESET_KEY, PERCENT_FOR_RESET_DEFAULT);
     }
-    #endregion // Constructors
 
-    #region Methods
     /// <summary>
     /// Start method
     /// </summary>
@@ -942,7 +935,6 @@ namespace Lemoine.Cnc
 
       return ok;
     }
-    #endregion // Methods
 
     #region IDisposable implementation
     /// <summary>
