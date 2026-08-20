@@ -95,6 +95,16 @@ namespace Lemoine.Cnc
     public Opc.Ua.Client.ISession Session => m_session;
 
     /// <summary>
+    /// Event that is raised once the session has been automatically reconnected
+    ///
+    /// The node ids and the namespace indexes that were resolved with the previous session
+    /// may not be valid any more and should be resolved again
+    ///
+    /// Note: this is raised from the OPC UA stack thread, not from the acquisition thread
+    /// </summary>
+    public event EventHandler<ReconnectedEventArgs> Reconnected;
+
+    /// <summary>
     /// The session keepalive interval to be used in ms.
     /// </summary>
     public int KeepAliveInterval { get; set; } = 5000;
@@ -345,17 +355,26 @@ namespace Lemoine.Cnc
         return;
       }
 
+      var newSession = false;
       lock (m_lock) {
         // if session recovered, Session property is null
         if (m_reconnectHandler.Session != null) {
           m_session = m_reconnectHandler.Session;
+          newSession = true;
         }
 
         m_reconnectHandler.Dispose ();
         m_reconnectHandler = null;
       }
 
-      log.Info ("ClientReconnectComplete: reconnected");
+      log.Info ($"ClientReconnectComplete: reconnected, newSession={newSession}");
+
+      try {
+        this.Reconnected?.Invoke (this, new ReconnectedEventArgs (newSession));
+      }
+      catch (Exception ex) {
+        log.Error ($"ClientReconnectComplete: exception in a Reconnected event handler", ex);
+      }
     }
 
     /// <summary>

@@ -32,6 +32,7 @@ namespace Lemoine.Cnc
 
     static readonly int PREPARE_QUERY_ATTEMPTS_BEFORE_DISCONNECTION_DEFAULT = 5; // Number of times before a disconnection in case of an error in prepareQuery
     static readonly int PREPARE_QUERY_ATTEMPTS_BEFORE_CONNECTION_ERROR_DEFAULT = 1; // Number of times before a connection error in case of an error in prepareQuery
+    static readonly int INVALID_READS_BEFORE_RESET_DEFAULT = 3; // Number of consecutive read operations without any valid value before the query is reset
 
     ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.OpcUaClient");
     readonly Lemoine.Cnc.OpcUaConverter m_converter = new Lemoine.Cnc.OpcUaConverter ();
@@ -49,14 +50,22 @@ namespace Lemoine.Cnc
     int m_defaultNamespaceIndex = -1;
     string m_cncAlarmNamespace = "Sinumerik";
     int m_cncAlarmNamespaceIndex = 2;
+    bool m_cncAlarmNamespaceSet = false;
     int m_timeoutSleepMs = 1000; // ms
     Subscription m_eventSubscription = null;
     IList<CncAlarm> m_cncAlarms = new List<CncAlarm> ();
+    volatile bool m_reconnectionDetected = false;
 
     /// <summary>
     /// Number of prepare query attempts before disconnection
     /// </summary>
     public int PrepareQueryAttemptsBeforeDisconnection { get; set; } = PREPARE_QUERY_ATTEMPTS_BEFORE_DISCONNECTION_DEFAULT;
+
+    /// <summary>
+    /// Number of consecutive read operations without any valid value before the query is reset
+    /// and a new connection is made
+    /// </summary>
+    public int InvalidReadsBeforeReset { get; set; } = INVALID_READS_BEFORE_RESET_DEFAULT;
 
     /// <summary>
     /// Number of prepare query attempts before a connection error
@@ -138,6 +147,7 @@ namespace Lemoine.Cnc
       set {
         m_cncAlarmNamespace = value;
         m_cncAlarmNamespaceIndex = -1;
+        m_cncAlarmNamespaceSet = true;
       }
     }
 
@@ -370,6 +380,7 @@ namespace Lemoine.Cnc
           m_client.SecurityMode = this.SecurityMode;
           m_client.Username = this.Username;
           m_client.Password = this.Password;
+          m_client.Reconnected += OnClientReconnected;
         }
         catch (Exception ex) {
           log.Error ($"StartAsync: creating the new UA Client for CncAcquisitionid={CncAcquisitionId} failed", ex);
@@ -414,6 +425,14 @@ namespace Lemoine.Cnc
       else if (log.IsDebugEnabled) {
         log.Debug ("StartAsync: connect is successful");
         m_timeoutSleepMs = INITIAL_TIMEOUT_SLEEP_MS;
+      }
+
+      // The session may have been reconnected by the OPC UA stack without the module being aware of it:
+      // in that case the node ids and the namespace indexes must be resolved again.
+      // Note: the flag is set from another thread, it is processed here, in the acquisition thread
+      if (m_reconnectionDetected) {
+        m_reconnectionDetected = false;
+        InvalidateQuery ("a reconnection was detected");
       }
 
       if (this.CncAlarmSubscription) {
@@ -492,6 +511,17 @@ namespace Lemoine.Cnc
 
       try {
         await m_nodeManager.ReadNodesAsync (m_client.Session);
+        if (this.InvalidReadsBeforeReset < m_nodeManager.ConsecutiveInvalidReadCount) {
+          // The read requests are successful but not a single node returns a valid value:
+          // the prepared query is probably not valid any more. Reset it and re-connect,
+          // so that the node ids are resolved again with a new session
+          log.Error ($"StartAsync: not a single valid value was read {m_nodeManager.ConsecutiveInvalidReadCount} consecutive times => reset the query and disconnect");
+          ConnectionError = true;
+          await DisconnectAsync ();
+          await Task.Delay (m_timeoutSleepMs);
+          IncreaseTimeout ();
+          return false;
+        }
         return true;
       }
       catch (Exception ex) {
@@ -503,8 +533,52 @@ namespace Lemoine.Cnc
       }
     }
 
+    /// <summary>
+    /// The session was automatically reconnected by the OPC UA stack
+    ///
+    /// The node ids and the namespace indexes that were resolved with the previous session
+    /// may not be valid any more
+    ///
+    /// This is called from the OPC UA stack thread: only a flag is set here, the query is reset
+    /// in <see cref="StartAsync"/>, in the acquisition thread
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    void OnClientReconnected (object sender, ReconnectedEventArgs e)
+    {
+      log.Warn ($"OnClientReconnected: a reconnection was detected (newSession={e.NewSession}) => the query will be prepared again");
+      m_reconnectionDetected = true;
+    }
+
+    /// <summary>
+    /// Reset the prepared query, so that the namespace indexes and the node ids are resolved again
+    /// with the current session
+    ///
+    /// The parameters to monitor are kept
+    /// </summary>
+    /// <param name="reason">reason why the query is reset, for the logs</param>
+    void InvalidateQuery (string reason)
+    {
+      log.Warn ($"InvalidateQuery: reset the query because {reason}");
+      m_queryReady = false;
+      m_defaultNamespaceIndex = -1;
+      if (m_cncAlarmNamespaceSet) {
+        // Only if it was resolved from a namespace name, else keep the default index
+        m_cncAlarmNamespaceIndex = -1;
+      }
+      m_nodeManager.Reset ();
+    }
+
     async Task DisconnectAsync (CancellationToken cancellationToken = default)
     {
+      // The next connection will use a new session: the namespace indexes and the node ids
+      // that were resolved with the current session must not be re-used
+      InvalidateQuery ("of a disconnection");
+
+      if (null != m_client) {
+        m_client.Reconnected -= OnClientReconnected;
+      }
+
       try {
         if (null != m_eventSubscription) {
           try {

@@ -58,6 +58,7 @@ namespace Lemoine.Cnc
     readonly ReadValueIdCollection m_readNodes = new ReadValueIdCollection ();
     readonly IDictionary<string, string> m_parametersWithNodeId = new Dictionary<string, string> ();
     readonly IDictionary<string, object> m_resultsByNodeId = new ConcurrentDictionary<string, object> ();
+    readonly IDictionary<string, StatusCode> m_statusCodesByNodeId = new ConcurrentDictionary<string, StatusCode> ();
     int m_cncAcquisitionId = 0;
 
     /// <summary>
@@ -79,6 +80,35 @@ namespace Lemoine.Cnc
         m_cncAcquisitionId = value;
         log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.{m_cncAcquisitionId}.NodeManager");
       }
+    }
+
+    /// <summary>
+    /// Number of consecutive read operations in which not a single node returned a valid value
+    ///
+    /// This is reset as soon as at least one valid value is read.
+    ///
+    /// A value that keeps increasing means the prepared query is not valid any more, for example
+    /// because the node ids were resolved with a namespace index that does not correspond
+    /// to the namespace table of the current session
+    /// </summary>
+    public int ConsecutiveInvalidReadCount { get; private set; } = 0;
+
+    /// <summary>
+    /// Reset the prepared query and all the associated results
+    ///
+    /// To be used as soon as the node ids may not be valid any more, for example after a reconnection:
+    /// a namespace index is only valid for a given session
+    /// </summary>
+    public void Reset ()
+    {
+      if (log.IsInfoEnabled) {
+        log.Info ($"Reset: clear {m_readNodes.Count} nodes to read and {m_parametersWithNodeId.Count} parameters");
+      }
+      m_readNodes.Clear ();
+      m_parametersWithNodeId.Clear ();
+      m_resultsByNodeId.Clear ();
+      m_statusCodesByNodeId.Clear ();
+      this.ConsecutiveInvalidReadCount = 0;
     }
 
     /// <summary>
@@ -445,25 +475,34 @@ namespace Lemoine.Cnc
 
       // Clear previous results
       m_resultsByNodeId.Clear ();
+      m_statusCodesByNodeId.Clear ();
       if (results is null) {
-        log.Error ("ProcessResults: results is null");
+        ++this.ConsecutiveInvalidReadCount;
+        log.Error ($"ProcessResults: results is null ({this.ConsecutiveInvalidReadCount} consecutive invalid read operations)");
         return;
       }
 
       if (results.Count != m_readNodes.Count) {
-        log.Error ($"ProcessResults: number of results ({results.Count}) is not the same than number of nodes to read ({m_readNodes.Count})");
+        ++this.ConsecutiveInvalidReadCount;
+        log.Error ($"ProcessResults: number of results ({results.Count}) is not the same than number of nodes to read ({m_readNodes.Count}) ({this.ConsecutiveInvalidReadCount} consecutive invalid read operations)");
         return;
       }
 
       // Store the new values
+      var invalidCount = 0;
       for (var i = 0; i < m_readNodes.Count; i++) {
         var identifier = m_readNodes[i].NodeId.ToString ();
         if (!string.IsNullOrEmpty (m_readNodes[i].IndexRange)) {
           identifier += "|" + m_readNodes[i].IndexRange;
         }
+        var statusCode = results[i].StatusCode;
+        m_statusCodesByNodeId[identifier] = statusCode;
         var v = results[i].Value;
+        if (v is null || StatusCode.IsBad (statusCode)) {
+          ++invalidCount;
+        }
         if (log.IsDebugEnabled) {
-          log.Debug ($"ProcessResults: {identifier} => {v}");
+          log.Debug ($"ProcessResults: {identifier} => {v} ({statusCode})");
         }
         if (v is byte[] byteString) {
           var s = System.Text.Encoding.UTF8.GetString (byteString);
@@ -480,13 +519,26 @@ namespace Lemoine.Cnc
           LogResult (results[i], identifier);
         }
       }
+
+      // Check the whole read operation is still valid: if not a single node returns a valid value,
+      // the prepared query is probably not valid any more (stale node ids or namespace indexes)
+      if ((0 < m_readNodes.Count) && (invalidCount == m_readNodes.Count)) {
+        ++this.ConsecutiveInvalidReadCount;
+        log.Error ($"ProcessResults: none of the {m_readNodes.Count} nodes returned a valid value ({this.ConsecutiveInvalidReadCount} consecutive invalid read operations), first status code is {results[0].StatusCode}");
+      }
+      else {
+        if ((0 < invalidCount) && log.IsWarnEnabled) {
+          log.Warn ($"ProcessResults: {invalidCount}/{m_readNodes.Count} nodes did not return a valid value");
+        }
+        this.ConsecutiveInvalidReadCount = 0;
+      }
     }
 
     void LogResult (DataValue result, string identifier)
     {
       try {
         if (result.Value == null) {
-          log.Warn ($"LogResult: received a null value for node id {identifier}");
+          log.Warn ($"LogResult: received a null value for node id {identifier} ({result.StatusCode})");
         }
         else if (result.Value.GetType ().IsArray) {
           // Convert as array and display the first element if possible
@@ -519,6 +571,21 @@ namespace Lemoine.Cnc
     }
 
     /// <summary>
+    /// Get a description of the status code that was returned by the server for a node identifier
+    /// </summary>
+    /// <param name="nodeIdentifier"></param>
+    /// <returns></returns>
+    string GetStatusCodeDescription (string nodeIdentifier)
+    {
+      if (m_statusCodesByNodeId.TryGetValue (nodeIdentifier, out var statusCode)) {
+        return statusCode.ToString ();
+      }
+      else {
+        return "UnknownStatusCode";
+      }
+    }
+
+    /// <summary>
     /// Get a value
     /// </summary>
     /// <param name="parameter"></param>
@@ -538,8 +605,9 @@ namespace Lemoine.Cnc
       }
 
       if (result is null) {
-        log.Error ($"Get: value for {parameter} id={nodeIdentifier} is null");
-        throw new Exception ("Null value");
+        var statusCode = GetStatusCodeDescription (nodeIdentifier);
+        log.Error ($"Get: value for {parameter} id={nodeIdentifier} is null with the status code {statusCode}");
+        throw new Exception ($"Null value with the status code {statusCode}");
       }
 
       // Convert the value as string
