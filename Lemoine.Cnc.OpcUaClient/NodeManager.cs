@@ -42,7 +42,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using log4net;
+using Microsoft.Extensions.Logging;
 using Opc.Ua;
 using Opc.Ua.Client;
 
@@ -53,7 +53,7 @@ namespace Lemoine.Cnc
   /// </summary>
   sealed class NodeManager
   {
-    ILog log = LogManager.GetLogger (typeof (NodeManager).FullName);
+    ILogger log = OpcUaClientLogging.CreateLogger (typeof (NodeManager).FullName);
 
     readonly ReadValueIdCollection m_readNodes = new ReadValueIdCollection ();
     readonly IDictionary<string, string> m_parametersWithNodeId = new Dictionary<string, string> ();
@@ -67,7 +67,7 @@ namespace Lemoine.Cnc
     public NodeManager (int cncAcquisitionId)
     {
       m_cncAcquisitionId = cncAcquisitionId;
-      log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.{cncAcquisitionId}.NodeManager");
+      log = OpcUaClientLogging.CreateLogger ($"Lemoine.Cnc.In.OpcUaClient.{cncAcquisitionId}.NodeManager");
     }
 
     /// <summary>
@@ -78,7 +78,7 @@ namespace Lemoine.Cnc
       get => m_cncAcquisitionId;
       set { 
         m_cncAcquisitionId = value;
-        log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.{m_cncAcquisitionId}.NodeManager");
+        log = OpcUaClientLogging.CreateLogger ($"Lemoine.Cnc.In.OpcUaClient.{m_cncAcquisitionId}.NodeManager");
       }
     }
 
@@ -101,8 +101,8 @@ namespace Lemoine.Cnc
     /// </summary>
     public void Reset ()
     {
-      if (log.IsInfoEnabled) {
-        log.Info ($"Reset: clear {m_readNodes.Count} nodes to read and {m_parametersWithNodeId.Count} parameters");
+      if (log.IsEnabled (LogLevel.Information)) {
+        log.LogInformation ($"Reset: clear {m_readNodes.Count} nodes to read and {m_parametersWithNodeId.Count} parameters");
       }
       m_readNodes.Clear ();
       m_parametersWithNodeId.Clear ();
@@ -125,19 +125,19 @@ namespace Lemoine.Cnc
       m_resultsByNodeId.Clear ();
 
       if (session == null || session.Connected == false) {
-        log.Error ($"ReadNodesAsync: session not connected");
+        log.LogError ($"ReadNodesAsync: session not connected");
         // TODO: exception or not
         return;
       }
 
       if (0 == m_readNodes.Count) {
-        log.Error ($"ReadNodesAsync: no node to read");
+        log.LogError ($"ReadNodesAsync: no node to read");
         return;
       }
 
       try {
-        if (log.IsDebugEnabled) {
-          log.Debug ($"ReadNodesAsync: reading {m_readNodes.Count} nodes");
+        if (log.IsEnabled (LogLevel.Debug)) {
+          log.LogDebug ($"ReadNodesAsync: reading {m_readNodes.Count} nodes");
         }
 
         // Call Read Service
@@ -150,16 +150,16 @@ namespace Lemoine.Cnc
         // Validate the results
         ClientBase.ValidateResponse (readResponse.Results, m_readNodes);
 
-        if (log.IsDebugEnabled) {
+        if (log.IsEnabled (LogLevel.Debug)) {
           foreach (var result in readResponse.Results) {
-            log.Debug ($"ReadNodesAsync: Value={result?.Value} StatusCode={result?.StatusCode} Type={result?.Value?.GetType ()} TypeInfo={result?.WrappedValue.TypeInfo}");
+            log.LogDebug ($"ReadNodesAsync: Value={result?.Value} StatusCode={result?.StatusCode} Type={result?.Value?.GetType ()} TypeInfo={result?.WrappedValue.TypeInfo}");
           }
         }
 
         ProcessResults (readResponse.Results, readResponse.DiagnosticInfos);
       }
       catch (Exception ex) {
-        log.Error ($"ReadNodesAsync: exception", ex);
+        log.LogError (ex, $"ReadNodesAsync: exception");
         throw;
       }
     }
@@ -170,14 +170,14 @@ namespace Lemoine.Cnc
     public async Task WriteNodes (Session session, WriteValueCollection writeNodes, CancellationToken cancellationToken = default)
     {
       if (session == null || session.Connected == false) {
-        log.Error ($"WriteNodes: session not connected");
+        log.LogError ($"WriteNodes: session not connected");
         // TODO: exception or not
         return;
       }
 
       try {
-        if (log.IsDebugEnabled) {
-          log.Debug ($"WriteNodes: reading {writeNodes.Count} nodes");
+        if (log.IsEnabled (LogLevel.Debug)) {
+          log.LogDebug ($"WriteNodes: reading {writeNodes.Count} nodes");
         }
 
         // Call Write Service
@@ -187,15 +187,15 @@ namespace Lemoine.Cnc
         // Validate the response
         ClientBase.ValidateResponse (writeResponse.Results, writeNodes);
 
-        if (log.IsDebugEnabled) {
-          log.Debug ("WriteNodes: results:");
+        if (log.IsEnabled (LogLevel.Debug)) {
+          log.LogDebug ("WriteNodes: results:");
           foreach (StatusCode writeResult in writeResponse.Results) {
-            log.Debug ($"  {writeResult}");
+            log.LogDebug ($"  {writeResult}");
           }
         }
       }
       catch (Exception ex) {
-        log.Error ($"WriteNodes: exception", ex);
+        log.LogError (ex, $"WriteNodes: exception");
         throw;
       }
     }
@@ -206,7 +206,7 @@ namespace Lemoine.Cnc
     public void Browse (ISession session)
     {
       if (session == null || session.Connected == false) {
-        log.Error ($"Browse: session not connected");
+        log.LogError ($"Browse: session not connected");
         // TODO: exception or not
         return;
       }
@@ -223,21 +223,21 @@ namespace Lemoine.Cnc
         NodeId nodeToBrowse = ObjectIds.Server;
 
         // Call Browse service
-        if (log.IsDebugEnabled) {
-          log.Debug ($"Browse: browsing {nodeToBrowse} node");
+        if (log.IsEnabled (LogLevel.Debug)) {
+          log.LogDebug ($"Browse: browsing {nodeToBrowse} node");
         }
         ReferenceDescriptionCollection browseResults = browser.Browse (nodeToBrowse);
 
         // Display the results
-        if (log.IsInfoEnabled) {
-          log.Debug ($"Browse: returned {browseResults.Count} results");
+        if (log.IsEnabled (LogLevel.Information)) {
+          log.LogDebug ($"Browse: returned {browseResults.Count} results");
           foreach (ReferenceDescription result in browseResults) {
-            log.Info ($"Browse: DisplayName={result.DisplayName.Text}, NodeClass={result.NodeClass}");
+            log.LogInformation ($"Browse: DisplayName={result.DisplayName.Text}, NodeClass={result.NodeClass}");
           }
         }
       }
       catch (Exception ex) {
-        log.Error ($"Browse: exception", ex);
+        log.LogError (ex, $"Browse: exception");
         throw;
       }
     }
@@ -252,7 +252,7 @@ namespace Lemoine.Cnc
     public async Task<bool> PrepareQueryAsync (Opc.Ua.Client.ISession session, IList<string> parameters, int defaultNamespaceIndex = 0)
     {
       if (!parameters.Any ()) {
-        log.Error ($"PrepareQueryAsync: no parameter");
+        log.LogError ($"PrepareQueryAsync: no parameter");
         return false;
       }
 
@@ -260,8 +260,8 @@ namespace Lemoine.Cnc
       m_readNodes.Clear ();
       m_parametersWithNodeId.Clear ();
 
-      if (log.IsDebugEnabled) {
-        log.Debug ($"PrepareQueryAsync: adding {parameters.Count} parameters under monitoring...");
+      if (log.IsEnabled (LogLevel.Debug)) {
+        log.LogDebug ($"PrepareQueryAsync: adding {parameters.Count} parameters under monitoring...");
       }
       int count = 0;
       var allNodeIdentifiers = new HashSet<string> ();
@@ -282,12 +282,12 @@ namespace Lemoine.Cnc
             identifier += "|" + readValueId.IndexRange;
           }
           else {
-            log.Warn ($"PrepareQueryAsync: bad parameter {parameter}, cannot extract indexes");
+            log.LogWarning ($"PrepareQueryAsync: bad parameter {parameter}, cannot extract indexes");
           }
         }
         var validationResult = ReadValueId.Validate (readValueId);
         if (validationResult != null) {
-          log.Error ($"PrepareQueryAsync: Invalid node id '{parameter}': {validationResult}");
+          log.LogError ($"PrepareQueryAsync: Invalid node id '{parameter}': {validationResult}");
           continue;
         }
 
@@ -296,11 +296,11 @@ namespace Lemoine.Cnc
 
         // Add a ReadValueId
         if (allNodeIdentifiers.Contains (identifier)) {
-          log.Info ($"PrepareQueryAsync: Id='{identifier}' already in the set of nodes to read");
+          log.LogInformation ($"PrepareQueryAsync: Id='{identifier}' already in the set of nodes to read");
         }
         else {
-          if (log.IsDebugEnabled) {
-            log.Debug ($"PrepareQueryAsync: add id={identifier}");
+          if (log.IsEnabled (LogLevel.Debug)) {
+            log.LogDebug ($"PrepareQueryAsync: add id={identifier}");
           }
           allNodeIdentifiers.Add (identifier);
           m_readNodes.Add (readValueId);
@@ -309,15 +309,15 @@ namespace Lemoine.Cnc
         count++;
       }
 
-      if (log.IsErrorEnabled) {
+      if (log.IsEnabled (LogLevel.Error)) {
         if (count == parameters.Count) {
-          log.Info ($"PrepareQueryAsync: successfully added {count}/{parameters.Count} parameters under monitoring");
+          log.LogInformation ($"PrepareQueryAsync: successfully added {count}/{parameters.Count} parameters under monitoring");
         }
         else if (0 == count) {
-          log.Error ($"PrepareQueryAsync: no node was added while {parameters.Count} parameters should be monitor");
+          log.LogError ($"PrepareQueryAsync: no node was added while {parameters.Count} parameters should be monitor");
         }
         else {
-          log.Warn ($"PrepareQueryAsync: successfully added {count}/{parameters.Count} parameters under monitoring");
+          log.LogWarning ($"PrepareQueryAsync: successfully added {count}/{parameters.Count} parameters under monitoring");
         }
       }
 
@@ -341,7 +341,7 @@ namespace Lemoine.Cnc
           parameterTmp = parts[0];
         }
         else {
-          log.Warn ($"GetNodeIdFromParamAsync: bad parameter {parameter}: cannot extract indexes");
+          log.LogWarning ($"GetNodeIdFromParamAsync: bad parameter {parameter}: cannot extract indexes");
         }
       }
 
@@ -355,7 +355,7 @@ namespace Lemoine.Cnc
           // Namespace already specified
           nodeId = parameterTmp;
           if (!await TestNodeIdAsync (session, nodeId)) {
-            log.Error ($"GetNodeIdFromParamAsync: invalid node id {nodeId}");
+            log.LogError ($"GetNodeIdFromParamAsync: invalid node id {nodeId}");
             return "";
           }
         }
@@ -367,12 +367,12 @@ namespace Lemoine.Cnc
               // Test with the namespace index #0
               nodeId = "ns=0;" + parameterTmp;
               if (!await TestNodeIdAsync (session, nodeId)) {
-                log.Error ($"GetNodeIdFromParamAsync: invalid node id {nodeId}");
+                log.LogError ($"GetNodeIdFromParamAsync: invalid node id {nodeId}");
                 return "";
               }
             }
             else {
-              log.Error ($"GetNodeIdFromParamAsync: invalid node id {nodeId}");
+              log.LogError ($"GetNodeIdFromParamAsync: invalid node id {nodeId}");
               return ""; // Not possible to test something else
             }
           }
@@ -380,7 +380,7 @@ namespace Lemoine.Cnc
       }
       catch (Exception ex) {
         // We may have "Cannot parse node id text: ..."
-        log.Error ($"GetNodeIdFromParamAsync: invalid node id {parameter}", ex);
+        log.LogError (ex, $"GetNodeIdFromParamAsync: invalid node id {parameter}");
         return "";
       }
 
@@ -394,17 +394,17 @@ namespace Lemoine.Cnc
         nodeId = nodeId.Split ('[')[0];
         var node = await session.ReadNodeAsync (nodeId);
         if (node is null) {
-          log.Warn ($"TestNodeIdAsync: {nodeId} not found");
+          log.LogWarning ($"TestNodeIdAsync: {nodeId} not found");
           return false; // Node id not found
         }
       }
       catch (ServiceResultException ex) {
         // Message could be BadUserAccessDenied / BadNodeIdUnknown
-        log.Error ($"TestNodeIdAsync: OPC UA Service exception for {nodeId}: {ex.Message}", ex);
+        log.LogError (ex, $"TestNodeIdAsync: OPC UA Service exception for {nodeId}: {ex.Message}");
         return false;
       }
       catch (Exception ex) {
-        log.Error ($"TestNodeIdAsync: exception for {nodeId}: {ex.Message}", ex);
+        log.LogError (ex, $"TestNodeIdAsync: exception for {nodeId}: {ex.Message}");
         return false;
       }
       return true;
@@ -420,23 +420,23 @@ namespace Lemoine.Cnc
     {
       // First list all possible namespaces
       var namespaces = session.NamespaceUris;
-      if (log.IsInfoEnabled) {
+      if (log.IsEnabled (LogLevel.Information)) {
         for (uint i = 0; i < namespaces.Count; i++) {
-          log.Info ($"GetNamespaceIndex: Namespace #{i} => '{namespaces.GetString (i)}'");
+          log.LogInformation ($"GetNamespaceIndex: Namespace #{i} => '{namespaces.GetString (i)}'");
         }
       }
 
       if (int.TryParse (namespaceName, out var namespaceIndex)) {
-        if (log.IsDebugEnabled) {
-          log.Debug ($"GetNamespaceIndex: specified namespace name {namespaceName} is an integer, try to consider it as an index directly");
+        if (log.IsEnabled (LogLevel.Debug)) {
+          log.LogDebug ($"GetNamespaceIndex: specified namespace name {namespaceName} is an integer, try to consider it as an index directly");
         }
         if (namespaceIndex < 0 || namespaceIndex >= namespaces.Count) {
-          log.Error ($"GetNamespaceIndex: specified int namespace #{namespaceIndex} is out of range, return 0 instead");
+          log.LogError ($"GetNamespaceIndex: specified int namespace #{namespaceIndex} is out of range, return 0 instead");
           return 0;
         }
         else {
-          if (log.IsInfoEnabled) {
-            log.Info ($"GetNamespaceIndex: specified int namespace #{namespaceIndex}={namespaces.GetString ((uint)namespaceIndex)}");
+          if (log.IsEnabled (LogLevel.Information)) {
+            log.LogInformation ($"GetNamespaceIndex: specified int namespace #{namespaceIndex}={namespaces.GetString ((uint)namespaceIndex)}");
           }
           return namespaceIndex;
         }
@@ -452,12 +452,12 @@ namespace Lemoine.Cnc
         }
 
         if (namespaceIndex == -1) {
-          log.Error ($"GetNamespaceIndex: namespace={namespaceName} not found, return #0");
+          log.LogError ($"GetNamespaceIndex: namespace={namespaceName} not found, return #0");
           return 0;
         }
         else {
-          if (log.IsInfoEnabled) {
-            log.Info ($"GetNamespaceIndex: return #{namespaceIndex} for {namespaceName}");
+          if (log.IsEnabled (LogLevel.Information)) {
+            log.LogInformation ($"GetNamespaceIndex: return #{namespaceIndex} for {namespaceName}");
           }
           return namespaceIndex;
         }
@@ -469,7 +469,7 @@ namespace Lemoine.Cnc
       // Log what happened
       if (diagnostics != null) {
         foreach (var diagnostic in diagnostics) {
-          log.Error ($"ProcessResults: diagnostic when receiving data: {diagnostic}");
+          log.LogError ($"ProcessResults: diagnostic when receiving data: {diagnostic}");
         }
       }
 
@@ -478,13 +478,13 @@ namespace Lemoine.Cnc
       m_statusCodesByNodeId.Clear ();
       if (results is null) {
         ++this.ConsecutiveInvalidReadCount;
-        log.Error ($"ProcessResults: results is null ({this.ConsecutiveInvalidReadCount} consecutive invalid read operations)");
+        log.LogError ($"ProcessResults: results is null ({this.ConsecutiveInvalidReadCount} consecutive invalid read operations)");
         return;
       }
 
       if (results.Count != m_readNodes.Count) {
         ++this.ConsecutiveInvalidReadCount;
-        log.Error ($"ProcessResults: number of results ({results.Count}) is not the same than number of nodes to read ({m_readNodes.Count}) ({this.ConsecutiveInvalidReadCount} consecutive invalid read operations)");
+        log.LogError ($"ProcessResults: number of results ({results.Count}) is not the same than number of nodes to read ({m_readNodes.Count}) ({this.ConsecutiveInvalidReadCount} consecutive invalid read operations)");
         return;
       }
 
@@ -501,13 +501,13 @@ namespace Lemoine.Cnc
         if (v is null || StatusCode.IsBad (statusCode)) {
           ++invalidCount;
         }
-        if (log.IsDebugEnabled) {
-          log.Debug ($"ProcessResults: {identifier} => {v} ({statusCode})");
+        if (log.IsEnabled (LogLevel.Debug)) {
+          log.LogDebug ($"ProcessResults: {identifier} => {v} ({statusCode})");
         }
         if (v is byte[] byteString) {
           var s = System.Text.Encoding.UTF8.GetString (byteString);
-          if (log.IsDebugEnabled) {
-            log.Debug ($"ProcessResults: byte[] {identifier} => {s}");
+          if (log.IsEnabled (LogLevel.Debug)) {
+            log.LogDebug ($"ProcessResults: byte[] {identifier} => {s}");
           }
           m_resultsByNodeId[identifier] = s;
         }
@@ -515,7 +515,7 @@ namespace Lemoine.Cnc
           m_resultsByNodeId[identifier] = v;
         }
 
-        if (log.IsErrorEnabled) {
+        if (log.IsEnabled (LogLevel.Error)) {
           LogResult (results[i], identifier);
         }
       }
@@ -524,11 +524,11 @@ namespace Lemoine.Cnc
       // the prepared query is probably not valid any more (stale node ids or namespace indexes)
       if ((0 < m_readNodes.Count) && (invalidCount == m_readNodes.Count)) {
         ++this.ConsecutiveInvalidReadCount;
-        log.Error ($"ProcessResults: none of the {m_readNodes.Count} nodes returned a valid value ({this.ConsecutiveInvalidReadCount} consecutive invalid read operations), first status code is {results[0].StatusCode}");
+        log.LogError ($"ProcessResults: none of the {m_readNodes.Count} nodes returned a valid value ({this.ConsecutiveInvalidReadCount} consecutive invalid read operations), first status code is {results[0].StatusCode}");
       }
       else {
-        if ((0 < invalidCount) && log.IsWarnEnabled) {
-          log.Warn ($"ProcessResults: {invalidCount}/{m_readNodes.Count} nodes did not return a valid value");
+        if ((0 < invalidCount) && log.IsEnabled (LogLevel.Warning)) {
+          log.LogWarning ($"ProcessResults: {invalidCount}/{m_readNodes.Count} nodes did not return a valid value");
         }
         this.ConsecutiveInvalidReadCount = 0;
       }
@@ -538,35 +538,35 @@ namespace Lemoine.Cnc
     {
       try {
         if (result.Value == null) {
-          log.Warn ($"LogResult: received a null value for node id {identifier} ({result.StatusCode})");
+          log.LogWarning ($"LogResult: received a null value for node id {identifier} ({result.StatusCode})");
         }
         else if (result.Value.GetType ().IsArray) {
           // Convert as array and display the first element if possible
           if (!(result.Value is object[] resultArray)) {
-            log.Error ($"LogResult: conversion error to array for {result.Value}, id={identifier} ({result.StatusCode})");
+            log.LogError ($"LogResult: conversion error to array for {result.Value}, id={identifier} ({result.StatusCode})");
           }
           else { // Not null
             switch (resultArray.Length) {
             case 0:
-              log.Error ($"LogResult: empty array {result.Value}, id={identifier} ({result.StatusCode})");
+              log.LogError ($"LogResult: empty array {result.Value}, id={identifier} ({result.StatusCode})");
               break;
             case 1:
-              if (log.IsDebugEnabled) {
-                log.Debug ($"LogResult: array with a unique element {resultArray[0]} for id={identifier} ({result.StatusCode}");
+              if (log.IsEnabled (LogLevel.Debug)) {
+                log.LogDebug ($"LogResult: array with a unique element {resultArray[0]} for id={identifier} ({result.StatusCode}");
               }
               break;
             default:
-              log.Error ($"LogResult: too many values in {result.Value}, id={identifier} ({result.StatusCode})");
+              log.LogError ($"LogResult: too many values in {result.Value}, id={identifier} ({result.StatusCode})");
               break;
             }
           }
         }
         else {
-          log.Info ($"LogResult: read {identifier}={result.Value} ({result.StatusCode})");
+          log.LogInformation ($"LogResult: read {identifier}={result.Value} ({result.StatusCode})");
         }
       }
       catch (Exception ex) {
-        log.Error ($"LogResult: log error, {ex.Message}", ex);
+        log.LogError (ex, $"LogResult: log error, {ex.Message}");
       }
     }
 
@@ -594,19 +594,19 @@ namespace Lemoine.Cnc
     {
       // Corresponding node identifier
       if (!m_parametersWithNodeId.TryGetValue (parameter, out var nodeIdentifier)) {
-        log.Error ($"Get: no valid not identifier for {parameter}");
+        log.LogError ($"Get: no valid not identifier for {parameter}");
         throw new Exception ($"{parameter} has no corresponding valid node identifier");
       }
 
       // Get the result
       if (!m_resultsByNodeId.TryGetValue (nodeIdentifier, out var result)) {
-        log.Info ($"Get: {parameter} id={nodeIdentifier} is not ready yet");
+        log.LogInformation ($"Get: {parameter} id={nodeIdentifier} is not ready yet");
         throw new Exception ("Value is not ready yet");
       }
 
       if (result is null) {
         var statusCode = GetStatusCodeDescription (nodeIdentifier);
-        log.Error ($"Get: value for {parameter} id={nodeIdentifier} is null with the status code {statusCode}");
+        log.LogError ($"Get: value for {parameter} id={nodeIdentifier} is null with the status code {statusCode}");
         throw new Exception ($"Null value with the status code {statusCode}");
       }
 
@@ -614,27 +614,27 @@ namespace Lemoine.Cnc
       if (result.GetType ().IsArray) {
         // Convert as array and take the first element if possible
         if (!(result is object[] resultArray)) {
-          log.Error ($"Get: conversion error to array for {result}, parameter={parameter} id={nodeIdentifier}");
+          log.LogError ($"Get: conversion error to array for {result}, parameter={parameter} id={nodeIdentifier}");
           throw new InvalidCastException ("Array conversion error");
         }
 
         switch (resultArray.Length) {
         case 0:
-          log.Error ($"Get: empty array {result}, parameter={parameter} id={nodeIdentifier}");
+          log.LogError ($"Get: empty array {result}, parameter={parameter} id={nodeIdentifier}");
           throw new Exception ("Empty array");
         case 1:
-          if (log.IsDebugEnabled) {
-            log.Debug ($"Get: return first array element {resultArray[0]} for parameter{parameter} id={nodeIdentifier}");
+          if (log.IsEnabled (LogLevel.Debug)) {
+            log.LogDebug ($"Get: return first array element {resultArray[0]} for parameter{parameter} id={nodeIdentifier}");
           }
           return resultArray[0];
         default:
-          log.Error ($"Get: too many values in {result}, parameter={parameter} id={nodeIdentifier}");
+          log.LogError ($"Get: too many values in {result}, parameter={parameter} id={nodeIdentifier}");
           throw new Exception ("Too many values in array");
         }
       }
       else {
-        if (log.IsDebugEnabled) {
-          log.Debug ($"Get: return {result} for parameter{parameter} id={nodeIdentifier}");
+        if (log.IsEnabled (LogLevel.Debug)) {
+          log.LogDebug ($"Get: return {result} for parameter{parameter} id={nodeIdentifier}");
         }
         return result;
       }

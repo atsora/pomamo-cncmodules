@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+using Pomamo.CncModule;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -22,12 +23,10 @@ namespace Lemoine.Cnc
     bool m_error = false;
     object m_data = null;
 
-    #region Getters / Setters
     /// <summary>
     /// An error occurred
     /// </summary>
     public bool Error => m_error;
-    #endregion // Getters / Setters
 
     #region Constructors / Destructor / ToString methods
     /// <summary>

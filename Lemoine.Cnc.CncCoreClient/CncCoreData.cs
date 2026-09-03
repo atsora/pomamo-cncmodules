@@ -23,7 +23,6 @@ namespace Lemoine.Cnc
     bool m_error = false;
     IDictionary<string, object> m_data = null;
 
-    #region Getters / Setters
     /// <summary>
     /// An error occurred
     /// </summary>
@@ -43,9 +42,7 @@ namespace Lemoine.Cnc
     /// Api key
     /// </summary>
     public string ApiKey { get; set; } = "";
-    #endregion // Getters / Setters
 
-    #region Constructors / Destructor / ToString methods
     /// <summary>
     /// Description of the constructor
     /// </summary>
@@ -67,7 +64,6 @@ namespace Lemoine.Cnc
       // Do nothing special here
       GC.SuppressFinalize (this);
     }
-    #endregion // Constructors / Destructor / ToString methods
 
     /// <summary>
     /// Start method: reset the different values

@@ -8,12 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Libraries\Lemoine.Cnc.CncAlarm\Lemoine.Cnc.CncAlarm.csproj" />
     <ProjectReference Include="..\..\Libraries\Pomamo.CncModule\Pomamo.CncModule.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="log4net" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" />
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Configuration" />
     <PackageReference Include="System.Threading.Tasks.Extensions" />

@@ -35,7 +35,7 @@
  * http://opcfoundation.org/License/MIT/1.00/
  * ======================================================================*/
 
-using log4net;
+using Microsoft.Extensions.Logging;
 using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
@@ -53,7 +53,7 @@ namespace Lemoine.Cnc
   /// </summary>
   sealed class UAClient
   {
-    ILog log = LogManager.GetLogger ("Lemoine.Cnc.In.OpcUaClient.UAClient");
+    ILogger log = OpcUaClientLogging.CreateLogger ("Lemoine.Cnc.In.OpcUaClient.UAClient");
 
     readonly ApplicationInstance m_application;
     readonly ApplicationConfiguration m_configuration;
@@ -70,7 +70,7 @@ namespace Lemoine.Cnc
       get => m_cncAcquisitionId;
       set {
         m_cncAcquisitionId = value;
-        log = LogManager.GetLogger ($"Lemoine.Cnc.In.OpcUaClient.UAClient.{value}");
+        log = OpcUaClientLogging.CreateLogger ($"Lemoine.Cnc.In.OpcUaClient.UAClient.{value}");
       }
     }
 
@@ -176,8 +176,8 @@ namespace Lemoine.Cnc
 
       m_configuration.SecurityConfiguration.ApplicationCertificate.Certificate = cert;
 
-      if (log.IsInfoEnabled) {
-        log.Info ($"EnsureApplicationCertificateAsync: subject={cert.Subject}, thumbprint={cert.Thumbprint}, hasPrivateKey={cert.HasPrivateKey}");
+      if (log.IsEnabled (LogLevel.Information)) {
+        log.LogInformation ($"EnsureApplicationCertificateAsync: subject={cert.Subject}, thumbprint={cert.Thumbprint}, hasPrivateKey={cert.HasPrivateKey}");
       }
     }
 
@@ -192,12 +192,12 @@ namespace Lemoine.Cnc
 
       try {
         if (m_session != null && m_session.Connected == true) {
-          if (log.IsDebugEnabled) {
-            log.Debug ("ConnectAsync: session already connected");
+          if (log.IsEnabled (LogLevel.Debug)) {
+            log.LogDebug ("ConnectAsync: session already connected");
           }
         }
         else {
-          log.Info ($"ConnectAsync: connecting to {serverUrl}");
+          log.LogInformation ($"ConnectAsync: connecting to {serverUrl}");
 
           // Get the endpoint by connecting to server's discovery endpoint.
           // Try to find the first endopint with security.
@@ -223,8 +223,8 @@ namespace Lemoine.Cnc
           var userIdentity = string.IsNullOrEmpty (this.Username)
             ? new UserIdentity ()
             : new UserIdentity (this.Username, this.Password);
-          if (log.IsDebugEnabled) {
-            log.Debug ($"ConnectAsync: username={this.Username} password={this.Password}");
+          if (log.IsEnabled (LogLevel.Debug)) {
+            log.LogDebug ($"ConnectAsync: username={this.Username} password={this.Password}");
           }
 
           // With this explicit overload call:
@@ -267,8 +267,8 @@ namespace Lemoine.Cnc
           }
 
           // Session created successfully.
-          if (log.IsInfoEnabled) {
-            log.Info ($"ConnectAsync: new session created with name={m_session.SessionName}");
+          if (log.IsEnabled (LogLevel.Information)) {
+            log.LogInformation ($"ConnectAsync: new session created with name={m_session.SessionName}");
           }
         }
 
@@ -276,7 +276,7 @@ namespace Lemoine.Cnc
       }
       catch (Exception ex) {
         // Log Error
-        log.Error ("ConnectAsync: exception", ex);
+        log.LogError (ex, "ConnectAsync: exception");
         return false;
       }
     }
@@ -288,8 +288,8 @@ namespace Lemoine.Cnc
     {
       try {
         if (m_session != null) {
-          if (log.IsDebugEnabled) {
-            log.Debug ("DisconnectAsync");
+          if (log.IsEnabled (LogLevel.Debug)) {
+            log.LogDebug ("DisconnectAsync");
           }
 
           await m_session.CloseAsync ();
@@ -297,14 +297,14 @@ namespace Lemoine.Cnc
           m_session = null;
 
           // Log Session Disconnected event
-          log.Info ("DisconnectAsync: session disconnected");
+          log.LogInformation ("DisconnectAsync: session disconnected");
         }
         else {
-          log.Debug ("DisconnectAsync: session not created");
+          log.LogDebug ("DisconnectAsync: session not created");
         }
       }
       catch (Exception ex) {
-        log.Error ("DisconnectAsync: exception", ex);
+        log.LogError (ex, "DisconnectAsync: exception");
       }
     }
 
@@ -322,18 +322,18 @@ namespace Lemoine.Cnc
         // start reconnect sequence on communication error.
         if (ServiceResult.IsBad (e.Status)) {
           if (ReconnectPeriod <= 0) {
-            log.Warn ($"KeepAlive status {e.Status}, but reconnect is disabled.");
+            log.LogWarning ($"KeepAlive status {e.Status}, but reconnect is disabled.");
             return;
           }
 
           lock (m_lock) {
             if (m_reconnectHandler == null) {
-              log.Info ($"SessionKeepAlive: status={e.Status}, reconnecting in {ReconnectPeriod}ms");
+              log.LogInformation ($"SessionKeepAlive: status={e.Status}, reconnecting in {ReconnectPeriod}ms");
               m_reconnectHandler = new SessionReconnectHandler (true);
               m_reconnectHandler.BeginReconnect (m_session, ReconnectPeriod, ClientReconnectComplete);
             }
             else {
-              log.Info ($"SessionKeepAlive: status={e.Status}, reconnect in progress");
+              log.LogInformation ($"SessionKeepAlive: status={e.Status}, reconnect in progress");
             }
           }
 
@@ -341,7 +341,7 @@ namespace Lemoine.Cnc
         }
       }
       catch (Exception ex) {
-        log.Error ("SessionKeepAlive: exception", ex);
+        log.LogError (ex, "SessionKeepAlive: exception");
       }
     }
 
@@ -367,13 +367,13 @@ namespace Lemoine.Cnc
         m_reconnectHandler = null;
       }
 
-      log.Info ($"ClientReconnectComplete: reconnected, newSession={newSession}");
+      log.LogInformation ($"ClientReconnectComplete: reconnected, newSession={newSession}");
 
       try {
         this.Reconnected?.Invoke (this, new ReconnectedEventArgs (newSession));
       }
       catch (Exception ex) {
-        log.Error ($"ClientReconnectComplete: exception in a Reconnected event handler", ex);
+        log.LogError (ex, $"ClientReconnectComplete: exception in a Reconnected event handler");
       }
     }
 
@@ -385,11 +385,11 @@ namespace Lemoine.Cnc
     {
       ServiceResult error = e.Error;
       if (error.StatusCode == StatusCodes.BadCertificateUntrusted && AutoAccept) {
-        log.Warn ($"CertificateValidation: untrusted Certificate accepted. Subject={e.Certificate.Subject}");
+        log.LogWarning ($"CertificateValidation: untrusted Certificate accepted. Subject={e.Certificate.Subject}");
         e.Accept = true;
       }
       else {
-        log.Error ($"CertificateValidation: untrusted Certificate rejected. Subject={e.Certificate.Subject}");
+        log.LogError ($"CertificateValidation: untrusted Certificate rejected. Subject={e.Certificate.Subject}");
       }
     }
   }

@@ -24,7 +24,6 @@ namespace Lemoine.Cnc
     bool m_error = false;
     IDictionary<string, object> m_data = null;
 
-    #region Getters / Setters
     /// <summary>
     /// An error occurred
     /// </summary>
@@ -34,6 +33,21 @@ namespace Lemoine.Cnc
     /// Base Cnc core service url
     /// </summary>
     public string BaseUrl { get; set; }
+
+    /// <summary>
+    /// Port of the service on the local machine
+    ///
+    /// It is a shortcut for BaseUrl, when the service runs on the same machine as the acquisition,
+    /// which is for example the case of Lem_OpcUaClientService. BaseUrl comes first when both are set.
+    /// </summary>
+    public int Port { get; set; } = 0;
+
+    /// <summary>
+    /// Base url of the service to request
+    /// </summary>
+    string ServiceUrl => string.IsNullOrEmpty (this.BaseUrl) && (0 < this.Port)
+      ? $"http://localhost:{this.Port}"
+      : this.BaseUrl;
 
     /// <summary>
     /// Acquisition identifier
@@ -49,7 +63,6 @@ namespace Lemoine.Cnc
     /// Api key
     /// </summary>
     public string ApiKey { get; set; } = "";
-    #endregion // Getters / Setters
 
     #region Constructors / Destructor / ToString methods
     /// <summary>
@@ -84,14 +97,10 @@ namespace Lemoine.Cnc
       m_data = null;
 
       if (log.IsDebugEnabled) {
-        log.Debug ($"Start: base url is {this.BaseUrl}");
+        log.Debug ($"Start: base url is {this.ServiceUrl}");
       }
 
-      var xml = $@"<root>
-  <moduleref ref=""{this.ModuleRef}"">
-{moduleElement.InnerXml}
-  </moduleref>
-</root>";
+      var xml = BuildXml (moduleElement);
 
       try {
         var requestUrl = new RequestUrl ("xml")
@@ -99,7 +108,7 @@ namespace Lemoine.Cnc
         if (!string.IsNullOrEmpty (this.ApiKey)) {
           requestUrl = requestUrl.AddHeader ("X-API-KEY", this.ApiKey);
         }
-        m_data = new Query (m_httpClient, this.BaseUrl)
+        m_data = new Query (m_httpClient, this.ServiceUrl)
           .UniqueResult<IDictionary<string, object>> (requestUrl, xml, "text/xml");
         foreach (var data in m_data) {
           if (log.IsDebugEnabled) {
@@ -129,6 +138,50 @@ namespace Lemoine.Cnc
     public void Finish ()
     {
 
+    }
+
+    /// <summary>
+    /// Attributes of the module element that are not forwarded to the remote module:
+    /// they are either processed by the acquisition engine, or they are properties of this module
+    /// </summary>
+    static readonly HashSet<string> NOT_FORWARDED_ATTRIBUTES =
+      new HashSet<string> (StringComparer.InvariantCultureIgnoreCase) {
+        "type", "ref", "starterror",
+        "if", "ifnot", "ifnotorunknown", "ifandnotunknown", "ifnotempty", "ifempty",
+        "ifdefined", "ifnotdefined", "iforunknown",
+        "BaseUrl", "Port", "ApiKey", "AcquisitionIdentifier", "ModuleRef"
+      };
+
+    /// <summary>
+    /// Build the XML to post
+    ///
+    /// The instructions of the module element are forwarded, and so are its own attributes, so that
+    /// the remote module can be configured by this acquisition. An attribute that is not a property
+    /// of this module only makes the acquisition engine log a warning when the module is loaded.
+    /// </summary>
+    /// <param name="moduleElement">not null</param>
+    string BuildXml (XmlElement moduleElement)
+    {
+      var document = new XmlDocument ();
+      var root = document.CreateElement ("root");
+      document.AppendChild (root);
+
+      var moduleRefElement = document.CreateElement ("moduleref");
+      moduleRefElement.SetAttribute ("ref", this.ModuleRef ?? "");
+      foreach (XmlAttribute attribute in moduleElement.Attributes) {
+        if (NOT_FORWARDED_ATTRIBUTES.Contains (attribute.Name)
+          || attribute.Name.StartsWith ("xmlns", StringComparison.InvariantCultureIgnoreCase)) {
+          continue;
+        }
+        if (log.IsDebugEnabled) {
+          log.Debug ($"BuildXml: forward the attribute {attribute.Name} to the remote module");
+        }
+        moduleRefElement.SetAttribute (attribute.Name, attribute.Value);
+      }
+      moduleRefElement.InnerXml = moduleElement.InnerXml;
+      root.AppendChild (moduleRefElement);
+
+      return document.OuterXml;
     }
   }
 }

@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 using System;
+using Pomamo.CncModule;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Lemoine.Cnc
 {
@@ -79,8 +81,12 @@ namespace Lemoine.Cnc
       }
 
       // Check if data has a right type
-      var alarms = data as IList<CncAlarm>;
-      if (alarms == null) {
+      // IEnumerable is covariant, unlike IList, so this accepts the alarms of any module.
+      // The non generic IList is kept as well, since the merge removes the alarms it merged
+      // from the list of the caller.
+      var alarms = (data as IEnumerable<ICncAlarm>)?.ToList ();
+      var callerList = data as System.Collections.IList;
+      if (alarms == null || callerList == null) {
         log.Error ("AlarmMerger: cannot process, wrong type");
         return;
       }
@@ -90,7 +96,7 @@ namespace Lemoine.Cnc
         foreach (var merge in m_merges) {
           switch (merge) {
             case MergeTypes.OP_MESSAGE_TEXT_WITH_MACHINE_ALARM_NUMBER:
-              MergeMessageTextWithMachineAlarmNumber (alarms);
+              MergeMessageTextWithMachineAlarmNumber (alarms, callerList);
               break;
           }
         }
@@ -102,10 +108,15 @@ namespace Lemoine.Cnc
     #endregion // Public methods
 
     #region Merge method
-    void MergeMessageTextWithMachineAlarmNumber (IList<CncAlarm> alarms)
+    /// <summary>
+    /// Merge the operator messages into the machine alarms
+    /// </summary>
+    /// <param name="alarms">alarms to process</param>
+    /// <param name="callerList">list of the caller, from which the merged alarms are removed</param>
+    void MergeMessageTextWithMachineAlarmNumber (IList<ICncAlarm> alarms, System.Collections.IList callerList)
     {
       // List of machine alarms
-      var machineAlarms = new List<CncAlarm> ();
+      var machineAlarms = new List<ICncAlarm> ();
       foreach (var alarm in alarms) {
         if (string.Equals (alarm.Type, "machine alarm")) {
           machineAlarms.Add (alarm);
@@ -113,7 +124,7 @@ namespace Lemoine.Cnc
       }
 
       // List of operator messages
-      var operatorMessages = new List<CncAlarm> ();
+      var operatorMessages = new List<ICncAlarm> ();
       foreach (var alarm in alarms) {
         if (string.Equals (alarm.Type, "Operator message")) {
           operatorMessages.Add (alarm);
@@ -139,7 +150,7 @@ namespace Lemoine.Cnc
                            operatorMessage, machineAlarm);
 
             // The operator message is then removed
-            alarms.Remove (operatorMessage);
+            callerList.Remove (operatorMessage);
           }
         }
       }

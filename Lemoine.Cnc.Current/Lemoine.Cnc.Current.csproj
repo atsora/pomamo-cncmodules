@@ -11,7 +11,8 @@
     <ProjectReference Include="..\..\..\Libraries\Lemoine.Core\Lemoine.Core.csproj" />
     <ProjectReference Include="..\..\..\Libraries\Lemoine.ModelDAO\Lemoine.ModelDAO.csproj" />
     <ProjectReference Include="..\..\Lemoine.Cnc.ICncModule\Lemoine.Cnc.ICncModule.csproj" />
-    <ProjectReference Include="..\..\Libraries\Lemoine.Cnc.CncAlarm\Lemoine.Cnc.CncAlarm.csproj" />
+    <ProjectReference Include="..\..\Libraries\Pomamo.CncModule\Pomamo.CncModule.csproj" />
+    <ProjectReference Include="..\..\Libraries\Lemoine.Cnc.CncAlarm\Lemoine.Cnc.CncAlarm.csproj" /><!-- for AlarmKey only, the alarms themselves are Pomamo.CncModule.CncAlarm -->
   </ItemGroup>
   
 </Project>

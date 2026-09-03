@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 using System;
+using Pomamo.CncModule;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -39,7 +40,7 @@ namespace Lemoine.Cnc
     /// <see cref="IAlarmTranslator"/>
     /// </summary>
     /// <param name="alarm"></param>
-    public void ProcessAlarm (CncAlarm alarm)
+    public void ProcessAlarm (ICncAlarm alarm)
     {
       var number = alarm.Number;
       if (m_numberMessage.TryGetValue (number, out string message)) {
