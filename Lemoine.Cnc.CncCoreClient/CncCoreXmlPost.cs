@@ -141,6 +141,74 @@ namespace Lemoine.Cnc
     }
 
     /// <summary>
+    /// Get methods for the data the remote module did not return.
+    ///
+    /// Start () stores in the acquisition data every value the service returned, and the
+    /// acquisition engine only runs a get instruction when its data is still unknown: these
+    /// methods are therefore reached only when the service did not return the value, because the
+    /// request failed or because the remote module could not read it.
+    ///
+    /// They exist so that such a value is reported for what it is. Without them the engine finds
+    /// no method on this module and logs a Fatal about the configuration, which points at the
+    /// wrong problem.
+    /// </summary>
+    /// <param name="param">parameter of the get instruction</param>
+    /// <param name="method">name of the calling method</param>
+    /// <returns>never, it always raises an exception</returns>
+    Exception MissingValue (string param, [System.Runtime.CompilerServices.CallerMemberName] string method = "")
+    {
+      if (m_error || (null == m_data)) {
+        log.Error ($"{method}: no value for {param} because the request to {this.ServiceUrl} failed");
+        return new Exception ($"CncCoreXmlPost.{method}: the request to {this.ServiceUrl} failed");
+      }
+
+      log.Error ($"{method}: {this.ServiceUrl} did not return any value for {param}, the remote module could not read it");
+      return new Exception ($"CncCoreXmlPost.{method}: no value for {param}");
+    }
+
+    /// <summary>
+    /// <see cref="MissingValue" />
+    /// </summary>
+    /// <param name="param"></param>
+    public object Get (string param) => throw MissingValue (param);
+
+    /// <summary>
+    /// <see cref="MissingValue" />
+    /// </summary>
+    /// <param name="param"></param>
+    public object GetData (string param) => throw MissingValue (param);
+
+    /// <summary>
+    /// <see cref="MissingValue" />
+    /// </summary>
+    /// <param name="param"></param>
+    public string GetString (string param) => throw MissingValue (param);
+
+    /// <summary>
+    /// <see cref="MissingValue" />
+    /// </summary>
+    /// <param name="param"></param>
+    public bool GetBool (string param) => throw MissingValue (param);
+
+    /// <summary>
+    /// <see cref="MissingValue" />
+    /// </summary>
+    /// <param name="param"></param>
+    public int GetInt (string param) => throw MissingValue (param);
+
+    /// <summary>
+    /// <see cref="MissingValue" />
+    /// </summary>
+    /// <param name="param"></param>
+    public long GetLong (string param) => throw MissingValue (param);
+
+    /// <summary>
+    /// <see cref="MissingValue" />
+    /// </summary>
+    /// <param name="param"></param>
+    public double GetDouble (string param) => throw MissingValue (param);
+
+    /// <summary>
     /// Attributes of the module element that are not forwarded to the remote module:
     /// they are either processed by the acquisition engine, or they are properties of this module
     /// </summary>
