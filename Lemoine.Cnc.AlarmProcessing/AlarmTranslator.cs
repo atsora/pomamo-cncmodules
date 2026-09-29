@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 using System;
+using Pomamo.CncModule;
 using System.Collections.Generic;
 using System.Linq;
 using Lemoine.Conversion;
@@ -166,13 +167,20 @@ namespace Lemoine.Cnc
       }
 
       // Check if data has a right type
-      IList<CncAlarm> alarms;
-      try {
-        alarms = m_autoConverter.ConvertAuto<IList<CncAlarm>> (data);
+      // IEnumerable is covariant, unlike IList, so the alarms of any module are accepted directly.
+      // The converter is only a fallback, for a data that is not a list of alarms yet.
+      IList<ICncAlarm> alarms;
+      if (data is IEnumerable<ICncAlarm> cncAlarms) {
+        alarms = cncAlarms.ToList ();
       }
-      catch (Exception ex) {
-        log.Error ($"Translate: {data} was not a list of cnc alarms", ex);
-        throw;
+      else {
+        try {
+          alarms = m_autoConverter.ConvertAuto<IList<Pomamo.CncModule.CncAlarm>> (data).Cast<ICncAlarm> ().ToList ();
+        }
+        catch (Exception ex) {
+          log.Error ($"Translate: {data} was not a list of cnc alarms", ex);
+          throw;
+        }
       }
 
       // Check if the translator is initialized

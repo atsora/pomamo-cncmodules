@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 using System;
+using Pomamo.CncModule;
 using System.Collections.Generic;
 using Lemoine.Core.Log;
 
@@ -66,7 +67,7 @@ namespace Lemoine.Cnc
     /// Must not be called if the initialization failed
     /// </summary>
     /// <param name="alarm"></param>
-    public void ProcessAlarm (CncAlarm alarm)
+    public void ProcessAlarm (ICncAlarm alarm)
     {
       // Check the dictionary
       if (m_fileDictionary.Error) {

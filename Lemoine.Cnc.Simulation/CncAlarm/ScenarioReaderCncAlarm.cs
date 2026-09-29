@@ -3,6 +3,7 @@
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+using Pomamo.CncModule;
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;

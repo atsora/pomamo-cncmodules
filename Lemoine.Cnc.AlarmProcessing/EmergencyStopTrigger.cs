@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 using System;
+using Pomamo.CncModule;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -121,7 +122,7 @@ namespace Lemoine.Cnc
     /// Determine if the emergency status must be triggered based on a series of alarms
     /// </summary>
     /// <param name="alarms"></param>
-    public void ProcessAlarms (IList<CncAlarm> alarms)
+    public void ProcessAlarms (IList<ICncAlarm> alarms)
     {
       if (!m_triggerRulesAnalyzed) {
         throw new Exception ("Trigger rules not analyzed");
@@ -170,7 +171,7 @@ namespace Lemoine.Cnc
       m_triggerRulesAnalyzed = true;
     }
 
-    bool IsAnEmergencyAlarm (CncAlarm alarm)
+    bool IsAnEmergencyAlarm (ICncAlarm alarm)
     {
       // Test the number
       if (!string.IsNullOrEmpty(alarm.Number) && m_numberRegex.Count > 0) {

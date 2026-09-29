@@ -25,7 +25,6 @@ namespace Lemoine.Cnc
     bool m_error = false;
     DateTime m_lastRequest = DateTime.UtcNow;
 
-    #region Getters / Setters
     /// <summary>
     /// An error occurred
     /// </summary>
@@ -55,7 +54,6 @@ namespace Lemoine.Cnc
     /// Minimum interval in ms between two requests
     /// </summary>
     public int IntervalMs { get; set; } = 0;
-    #endregion // Getters / Setters
 
     #region Constructors / Destructor / ToString methods
     /// <summary>

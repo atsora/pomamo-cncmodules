@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+using Pomamo.CncModule;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -19,7 +20,7 @@ namespace Lemoine.Cnc
     /// <summary>
     /// Update the current cnc alarm list
     /// </summary>
-    public IList<CncAlarm> CurrentCncAlarms
+    public IList<Pomamo.CncModule.CncAlarm> CurrentCncAlarms
     {
       set
       {
@@ -27,7 +28,7 @@ namespace Lemoine.Cnc
         var now = DateTime.UtcNow;
 
         // Create an alarm key for each received alarm
-        var receivedAlarms = new Dictionary<AlarmKey, CncAlarm> ();
+        var receivedAlarms = new Dictionary<AlarmKey, Pomamo.CncModule.CncAlarm> ();
         foreach (var alarm in value) {
           receivedAlarms[new AlarmKey (alarm)] = alarm;
         }
