@@ -46,6 +46,12 @@ namespace Lemoine.Cnc
     object m_currentMachineModeValue = null;
     Queue<ExchangeData> m_pausedQueue = new Queue<ExchangeData> ();
     bool m_paused = false;
+
+    // Data of the current acquisition cycle (between Start and Finish), written at once in Finish
+    static readonly int MAX_BUFFER_SIZE = 1000;
+    readonly object m_bufferLock = new object ();
+    readonly List<ExchangeData> m_buffer = new List<ExchangeData> ();
+    bool m_inCycle = false;
     #endregion // Members
 
     #region Getters / Setters
@@ -114,7 +120,11 @@ namespace Lemoine.Cnc
     /// </summary>
     public int Count
     {
-      get { return m_queue.Count; }
+      get {
+        lock (m_bufferLock) {
+          return m_queue.Count + m_buffer.Count;
+        }
+      }
     }
 
     /// <summary>
@@ -167,7 +177,7 @@ namespace Lemoine.Cnc
                          m_pausedQueue.Count);
         while (0 < m_pausedQueue.Count) {
           SetActive ();
-          m_queue.Enqueue (m_pausedQueue.Dequeue ());
+          EnqueueInQueue (m_pausedQueue.Dequeue ());
         }
         // - consider this machine mode
         log.DebugFormat ("AddMachineModeData: " +
@@ -208,7 +218,7 @@ namespace Lemoine.Cnc
         ExchangeData pausedData = m_pausedQueue.Dequeue ();
         if (!pausedData.Command.Equals (ExchangeDataCommand.MachineMode)
             && !pausedData.Command.Equals (ExchangeDataCommand.StopCncValue)) {
-          m_queue.Enqueue (pausedData);
+          EnqueueInQueue (pausedData);
         }
         else {
           log.InfoFormat ("EmptyPausedQueueDiscardingMachineMode: " +
@@ -216,6 +226,43 @@ namespace Lemoine.Cnc
                           pausedData, pausedData.Value);
         }
       }
+    }
+
+    /// <summary>
+    /// Add a data in the queue: during an acquisition cycle, it is kept in a buffer that is written at once in Finish
+    /// (in a single transaction for a SQLite queue), else it is written immediately
+    /// </summary>
+    void EnqueueInQueue (ExchangeData data)
+    {
+      lock (m_bufferLock) {
+        if (m_inCycle) {
+          m_buffer.Add (data);
+          if (MAX_BUFFER_SIZE <= m_buffer.Count) {
+            Flush ();
+          }
+          return;
+        }
+      }
+      m_queue.Enqueue (data);
+    }
+
+    /// <summary>
+    /// Write the buffered data in the queue
+    /// </summary>
+    void Flush ()
+    {
+      IList<ExchangeData> datas;
+      lock (m_bufferLock) {
+        if (0 == m_buffer.Count) {
+          return;
+        }
+        datas = m_buffer.ToList ();
+        m_buffer.Clear ();
+      }
+      if (log.IsDebugEnabled) {
+        log.Debug ($"Flush: write {datas.Count} data in the queue");
+      }
+      m_queue.EnqueueRange (datas);
     }
 
     /// <summary>
@@ -234,7 +281,7 @@ namespace Lemoine.Cnc
         log.DebugFormat ("AddData: " +
                          "enqueue in the file fifo {0}",
                          data);
-        m_queue.Enqueue (data);
+        EnqueueInQueue (data);
       }
     }
 
@@ -384,6 +431,12 @@ namespace Lemoine.Cnc
     public void Dispose ()
     {
       if (null != m_queue) {
+        try {
+          Flush ();
+        }
+        catch (Exception ex) {
+          log.Error ("Dispose: the buffered data could not be written", ex);
+        }
         m_queue.Dispose ();
         m_queue = null;
       }
@@ -424,15 +477,26 @@ namespace Lemoine.Cnc
           ((ICheckedCaller)m_queue).SetCheckedCaller (this);
         }
       }
+      lock (m_bufferLock) {
+        m_inCycle = true;
+      }
       return true;
     }
 
     /// <summary>
-    /// Finish method
+    /// Finish method: write the data of the acquisition cycle
     /// </summary>
     public void Finish ()
     {
       Debug.Assert (null != m_queue);
+      try {
+        Flush ();
+      }
+      finally {
+        lock (m_bufferLock) {
+          m_inCycle = false;
+        }
+      }
     }
 
     /// <summary>
@@ -985,6 +1049,7 @@ namespace Lemoine.Cnc
     /// <returns></returns>
     public ExchangeData Dequeue (string param)
     {
+      Flush ();
       return m_queue.Dequeue ();
     }
 
@@ -997,6 +1062,7 @@ namespace Lemoine.Cnc
     {
       int n = int.Parse (param);
       try {
+        Flush ();
         m_queue.UnsafeDequeue (n);
       }
       catch (Exception) {
