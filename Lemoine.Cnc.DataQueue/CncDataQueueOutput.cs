@@ -214,10 +214,10 @@ namespace Lemoine.Cnc
     {
       while (0 < m_pausedQueue.Count) {
         SetActive ();
-        // Insert the data in queue that are not MachineMode and StopCncValue
+        // Insert the data in queue that are not MachineMode and StopCncValue (the cuts are kept)
         ExchangeData pausedData = m_pausedQueue.Dequeue ();
         if (!pausedData.Command.Equals (ExchangeDataCommand.MachineMode)
-            && !pausedData.Command.Equals (ExchangeDataCommand.StopCncValue)) {
+            && (!pausedData.Command.Equals (ExchangeDataCommand.StopCncValue) || pausedData.IsCut)) {
           EnqueueInQueue (pausedData);
         }
         else {
@@ -578,6 +578,35 @@ namespace Lemoine.Cnc
       catch (Exception ex) {
         log.ErrorFormat ("StopCncValue: {0}", ex);
         throw ex;
+      }
+    }
+
+    /// <summary>
+    /// Cut the Cnc Values if v is true: the current period ends now and a new one starts now, without any interruption
+    /// (for example at a change of sequence or operation). A stopped Cnc value is not cut.
+    ///
+    /// Put it before the instructions that enqueue the values of these fields, so that a value of the same cycle
+    /// starts the new period
+    /// </summary>
+    /// <param name="param">List of field keys separated by a comma (,)</param>
+    /// <param name="v"></param>
+    public void CutCncValue (string param, object v)
+    {
+      if (!(bool)v) {
+        return;
+      }
+      foreach (string fieldKey in param.Split (new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)) {
+        if (m_stoppedCncValues.Contains (fieldKey)) {
+          continue;
+        }
+        ExchangeData data = ExchangeData.BuildCutCncValueExchangeData (
+          m_machineId, m_machineModuleId, DateTime.UtcNow, fieldKey);
+        try {
+          AddData (data);
+        }
+        catch (Exception ex) {
+          log.Error ($"CutCncValue: enqueueing {data} failed", ex);
+        }
       }
     }
 
