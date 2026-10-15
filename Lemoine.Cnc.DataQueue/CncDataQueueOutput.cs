@@ -610,6 +610,42 @@ namespace Lemoine.Cnc
       }
     }
 
+    // Last value of the variables tracked by CutCncValueOnChange, by tracker name, in memory and in files (kept after a restart)
+    readonly VariableChangeTracker m_cutTracker = new VariableChangeTracker ("CutTracker");
+    readonly ISet<string> m_cutTrackersInMemory = new HashSet<string> (); // Trackers whose value is in the memory of m_cutTracker
+
+    /// <summary>
+    /// Cut the Cnc Values when a tracked variable changes (tool number, stamp, sequence...).
+    /// The last value of the variable is kept in memory and in a file (CutTracker-machine-module-tracker),
+    /// so that a change during a restart is detected. Without any known previous value, the Cnc values are cut
+    /// </summary>
+    /// <param name="param">tracker name and list of field keys separated by a comma, for example "Tool|SpindleLoad,ChatterIndex,Energy"
+    /// (without any '|', the whole parameter is the tracker name and the field list)</param>
+    /// <param name="v">current value of the tracked variable (a null value is ignored)</param>
+    public void CutCncValueOnChange (string param, object v)
+    {
+      if (null == v) {
+        return;
+      }
+      var parts = param.Split (new char[] { '|' }, 2);
+      var trackerName = (2 == parts.Length) ? parts[0] : param;
+      var fields = (2 == parts.Length) ? parts[1] : param;
+      m_cutTracker.MachineId = m_machineId;
+      m_cutTracker.MachineModuleId = m_machineModuleId;
+      if (m_cutTracker.IsNewVariableValue (trackerName, v)) {
+        if (log.IsDebugEnabled) {
+          log.Debug ($"CutCncValueOnChange: {trackerName} is new {v} => cut {fields}");
+        }
+        CutCncValue (fields, true);
+        m_cutTracker.StoreNewVariable (trackerName, v);
+        m_cutTrackersInMemory.Add (trackerName);
+      }
+      else if (m_cutTrackersInMemory.Add (trackerName)) {
+        // Same value as in the file (after a restart): keep it in memory, not to read the file at each cycle
+        m_cutTracker.StoreNewVariable (trackerName, v);
+      }
+    }
+
     /// <summary>
     /// Stop the Cnc Value if v is false
     /// </summary>
